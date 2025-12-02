@@ -4,7 +4,7 @@ from pathlib import Path
 from sys import path 
 
 # ⬅️ ייבוא Page Objects ו-Utilities
-from utils.secrets_loader import load_secrets 
+from .utils.secrets_loader import load_secrets 
 from tests.test_setup import setup_driver_and_login # ⬅️ המתודה שתטפל ב-Login ו-Setup
 from pages.daycare_page import DaycarePage
 

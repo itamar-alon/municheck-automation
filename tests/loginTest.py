@@ -3,7 +3,7 @@ from selenium.common.exceptions import TimeoutException
 from selenium.webdriver.chrome.options import Options
 import json
 from pathlib import Path 
-from utils.secrets_loader import load_secrets
+from .utils.secrets_loader import load_secrets
 # ⬅️ ייבוא ה-Page Object שלנו
 from pages.login_page import LoginPage 
 
@@ -33,7 +33,7 @@ secrets = load_secrets()
 if secrets:
     # שליפת נתוני כניסה ותצורה
     USER_ID = secrets['user_data']['id_number']
-    USER_PHONE = secrets['user_data']['phone_number']
+    USER_PASSWORD = secrets['user_data']['password']
     LOGIN_URL = secrets['login_url']
     HOME_URL_PART = secrets['home_url_part'] 
     
@@ -50,17 +50,17 @@ if secrets:
             # 1. אתחול ה-Page Object!
             login_page = LoginPage(driver, LOGIN_URL)
             
-            # 2. הרצת שלב 1: הזנת פרטים ולחיצה
-            login_page.enter_credentials(USER_ID, USER_PHONE)
+            # 2. 🟢 תיקון: קריאה למתודה החדשה של לוגין באמצעות סיסמה
+            login_page.login_with_password(USER_ID, USER_PASSWORD)
             
-            # 3. הרצת שלב 2: המתנה ל-OTP וניווט
-            login_page.wait_for_otp_and_login(HOME_URL_PART)
+            # 3. 🟢 תיקון: המתנה לניווט מוצלח (ולא ל-OTP)
+            login_page.wait_for_successful_login(HOME_URL_PART)
 
             print("✅ התחברות אושרה. הדפדפן נסגר אוטומטית.")
 
     except TimeoutException:
         # ⬅️ טיפול ב-Timeout
-        print(f"❌ הבדיקה נכשלה! פג זמן ההמתנה (60 שניות ל-OTP או 20 שניות ל-URL).")
+        print(f"❌ הבדיקה נכשלה! פג זמן ההמתנה (ל-URL או לאלמנט).")
         try:
             current_url = driver.current_url
             print(f"  הכתובת הנוכחית היא: {current_url}")

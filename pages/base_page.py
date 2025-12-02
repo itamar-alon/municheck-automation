@@ -8,17 +8,26 @@ class BasePage:
     
     DEFAULT_WAIT_TIME = 10
     
-    def __init__(self, driver):
+    # 🛑 תיקון קריטי: הפיכת driver לאופציונלי (None)
+    def __init__(self, driver=None):
         self.driver = driver
-        # ⚠️ הפעלת WebDriverWait חדש בכל קריאה ל-wait_for... (במקום לאחסן אותו במשתנה סלף)
-        # זה מבטיח שאנו יכולים להשתמש ב-timeout דינמי
-        # נשאיר את זה כפי שהיה במקור כי רוב המתודות משתמשות ב-self.wait
-        self.wait = WebDriverWait(driver, self.DEFAULT_WAIT_TIME)
+        
+        # 🟢 ייצוב: יוצרים את ה-wait רק אם ה-driver סופק
+        if driver:
+            self.wait = WebDriverWait(driver, self.DEFAULT_WAIT_TIME)
+        else:
+            self.wait = None # או שתטפל בזה במקום אחר, אך כרגע נגדיר כ-None
 
     def _get_wait(self, timeout):
         """ מחזיר אובייקט WebDriverWait עם ה-timeout הרצוי. """
+        # אם ה-driver לא אופסן ב-init, זה יקרוס. לכן אנו נשתמש ב-WebDriverWait חדש.
+        if self.driver is None:
+            raise Exception("Driver object must be initialized before performing wait operations.")
+
         if timeout is None:
-            return self.wait # משתמש בזמן ברירת המחדל
+            # במקום להשתמש ב-self.wait הבעייתי, אנו יוצרים אותו מחדש כאן
+            return WebDriverWait(self.driver, self.DEFAULT_WAIT_TIME) 
+        
         return WebDriverWait(self.driver, timeout)
 
     def execute_script(self, script, element=None):
@@ -37,33 +46,32 @@ class BasePage:
     # --- פעולות בסיסיות לאלמנטים ---
     
     def click(self, by_locator, timeout=None):
-        """ 🟢 תיקון: הוספת timeout אופציונלי. מחפש אלמנט ולוחץ עליו בצורה יציבה. """
+        """ מחפש אלמנט ולוחץ עליו בצורה יציבה. """
         self._get_wait(timeout).until(EC.element_to_be_clickable(by_locator)).click()
     
     def enter_text(self, by_locator, text, timeout=None):
-        """ 🟢 תיקון: הוספת timeout אופציונלי. מחפש אלמנט ומזין טקסט. """
+        """ מחפש אלמנט ומזין טקסט. """
         element = self.get_element(by_locator, timeout=timeout)
         element.send_keys(text)
         
     # --- פעולות המתנה והשגה (Get) מורחבות ---
     
     def get_element(self, by_locator, timeout=None):
-        """ 🟢 תיקון: הוספת timeout אופציונלי. ממתין עד שהאלמנט קיים ב-DOM ומחזיר אותו. """
+        """ ממתין עד שהאלמנט קיים ב-DOM ומחזיר אותו. """
         return self._get_wait(timeout).until(EC.presence_of_element_located(by_locator))
     
     def wait_for_clickable_element(self, by_locator, timeout=None):
-        """ 🟢 תיקון קריטי: הוספת timeout אופציונלי. ממתין עד שהאלמנט ניתן ללחיצה ומחזיר אותו. """
+        """ ממתין עד שהאלמנט ניתן ללחיצה ומחזיר אותו. """
         return self._get_wait(timeout).until(EC.element_to_be_clickable(by_locator))
     
     def wait_for_invisibility(self, by_locator, timeout=None):
-        """ 🟢 תיקון: הוספת timeout אופציונלי. ממתין עד שהאלמנט נעלם. """
-        # כאן נשמור את ברירת המחדל ל-30 שניות רק כדי לא לשבור את הממשק המקורי שלך
+        """ ממתין עד שהאלמנט נעלם. """
         if timeout is None:
-            timeout = 30
+            timeout = 30 # זמן ארוך יותר ליציבות
         WebDriverWait(self.driver, timeout).until(EC.invisibility_of_element_located(by_locator))
     
     def wait_for_url_to_contain(self, url_part, timeout=None):
-        """ 🟢 תיקון: הוספת timeout אופציונלי. ממתין עד שה-URL מכיל חלק מסוים. """
+        """ ממתין עד שה-URL מכיל חלק מסוים. """
         if timeout is None:
             timeout = 15
         WebDriverWait(self.driver, timeout).until(EC.url_contains(url_part))

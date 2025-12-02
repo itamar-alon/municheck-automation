@@ -1,56 +1,67 @@
 from selenium.webdriver.common.by import By
-# ייבוא קלאס הבסיס שלך
+from selenium.webdriver.support.ui import WebDriverWait 
+from selenium.webdriver.support import expected_conditions as EC 
 from .base_page import BasePage 
-# אין צורך לייבא כאן את WebDriverWait או EC!
+from selenium.common.exceptions import TimeoutException # נשמר הייבוא
 
 class LoginPage(BasePage):
-    """קלאס המייצג את דף הכניסה."""
+    """קלאס המייצג את דף הכניסה, כעת תומך בלוגין באמצעות סיסמה."""
 
     # --- Locators ---
-    ID_FIELD = (By.NAME, "tz")
-    PHONE_FIELD = (By.NAME, "phone")
-    LOGIN_BUTTON_TEXT = "שלח לי קוד חד פעמי"
-    LOGIN_BUTTON = (By.XPATH, f"//button[text()='{LOGIN_BUTTON_TEXT}']")
-    OTP_FIELD = (By.NAME, "code") 
+    PASSWORD_TAB_TEXT = "באמצעות סיסמה"
+    PASSWORD_TAB = (By.XPATH, f"//button[text()='{PASSWORD_TAB_TEXT}']")
     
-    def __init__(self, driver, url):
-        # קורא ל-constructor של קלאס הבסיס
-        super().__init__(driver)
-        self.LOGIN_URL = url # שומר את ה-URL של דף הכניסה
+    # 🛑 תיקון: Locator רחב יותר (מחפש לפי name, type, או attributes שונים)
+    ID_FIELD = (By.XPATH, "//input[@name='identityNumber' or @name='tz' or @type='text' or @type='number']") 
+    PASSWORD_FIELD = (By.NAME, "password") 
+    
+    FINAL_LOGIN_BUTTON_TEXT = "כניסה"
+    FINAL_LOGIN_BUTTON = (By.XPATH, f"//button[text()='{FINAL_LOGIN_BUTTON_TEXT}']")
+    
+    OVERLAY_LOCATOR = (By.CSS_SELECTOR, ".MuiDialog-container[role='presentation']")
 
-    def enter_credentials(self, user_id: str, user_phone: str):
-        """מנווט, מזין תעודת זהות ומספר טלפון ולוחץ על 'שלח לי קוד'."""
+
+    def __init__(self, driver, url):
+        super().__init__(driver) 
+        self.LOGIN_URL = url 
+
+    def login_with_password(self, user_id: str, user_password: str):
+        """מבצע לוגין מלא באמצעות תעודת זהות וסיסמה."""
         
-        self.go_to_url(self.LOGIN_URL) # שימוש במתודה מ-BasePage
+        self.go_to_url(self.LOGIN_URL)
         print(f">>> נווט ל: {self.LOGIN_URL}")
         
-        # הזנת ת.ז.
-        # ⬅️ תיקון: שימוש ב-get_element במקום wait_for_presence
+        # 1. לחיצה על טאב "באמצעות סיסמה"
+        self.click(self.PASSWORD_TAB)
+        print(f">>> בוצעה לחיצה על טאב '{self.PASSWORD_TAB_TEXT}'.")
+
+        # 🛑 תיקון קריטי: המתנה ששדה תעודת הזהות יהיה לחיץ (Clickable)
+        WebDriverWait(self.driver, 10).until(
+            EC.element_to_be_clickable(self.ID_FIELD) # ⬅️ השתנה ל-Clickable
+        )
+        
+        # 2. הזנת ת.ז.
         self.enter_text(self.ID_FIELD, user_id) 
         print(">>> הוזנה תעודת זהות")
 
-        # הזנת טלפון
-        self.enter_text(self.PHONE_FIELD, user_phone) # שימוש במתודה מ-BasePage
-        print(">>> הוזן מספר טלפון")
+        # 3. הזנת סיסמה
+        self.enter_text(self.PASSWORD_FIELD, user_password)
+        print(">>> הוזנה סיסמה")
 
-        # לחיצה על כפתור
-        self.click(self.LOGIN_BUTTON) # שימוש במתודה מ-BasePage
-        print(f">>> בוצעה לחיצה על '{self.LOGIN_BUTTON_TEXT}' לאחר המתנה.")
+        # 4. 🛑 לחיצה על כפתור כניסה סופי (עם טיפול ב-Overlay)
+        try:
+            # המתנה להיעלמות Overlay אם הופיע
+            self.wait_for_invisibility(self.OVERLAY_LOCATOR, timeout=10)
+        except TimeoutException:
+            print(">>> אזהרה: Overlay לא נעלם, מנסה לחיצת כוח (JS).")
 
-    def wait_for_otp_and_login(self, home_url_part: str):
-        """
-        ממתין שהמשתמש יזין את קוד ה-OTP ויבצע ניווט.
-        """
-        
-        # 1. ודא ששדה ה-OTP הופיע בדף
-        # ⬅️ תיקון: שימוש ב-get_element במקום wait_for_presence
-        self.get_element(self.OTP_FIELD) 
-        print(">>> שדה קוד חד פעמי נמצא. ⏰ ממתין שתזין את הקוד בדפדפן ותלחץ 'התחברות'.")
+        # לחיצה באמצעות JavaScript כגיבוי
+        login_button_element = self.wait_for_clickable_element(self.FINAL_LOGIN_BUTTON, timeout=5)
+        self.execute_script("arguments[0].click();", login_button_element)
+            
+        print(f">>> בוצעה לחיצה על כפתור '{self.FINAL_LOGIN_BUTTON_TEXT}'.")
 
-        # 2. המתנה לניווט (היעלמות שדה ה-OTP)
-        self.wait_for_invisibility(self.OTP_FIELD, timeout=60) # שימוש במתודה מ-BasePage
-        print(">>> זוהה ניווט: שדה ה-OTP נעלם בהצלחה.")
-        
-        # 3. המתנה ל-URL הסופי
+    def wait_for_successful_login(self, home_url_part: str):
+        """ ממתין לניווט מוצלח לאחר הלוגין באמצעות סיסמה. """
         self.wait_for_url_to_contain(home_url_part, timeout=20)
         print(f">>> בוצע ניווט מוצלח ל-URL המכיל '{home_url_part}'.")
