@@ -7,17 +7,17 @@ from .base_page import BasePage
 
 class EnforcementPage(BasePage):
     """
-    קלאס המייצג את דף פיקוח עירוני (Enforcement).
-    מכיל לוגיקת בדיקה יציבה מבוססת על מנגנון ה-Retry וה-XPath החכם.
+    Class representing the Municipal Enforcement page.
+    Contains stable testing logic based on the Retry mechanism and smart XPath.
     """
 
-    # --- Locators ונתוני בדיקה ---
-    # Locator חכם לחיפוש קישור לפי טקסט (משתמש ב-normalize-space לניקוי רווחים נסתרים)
+    # --- Locators and Test Data ---
+    # Smart Locator to find links by text (uses normalize-space to clean hidden spaces)
     GENERIC_LINK_BY_TEXT = (By.XPATH, "//a[contains(normalize-space(.), '{}')]")
     GENERIC_TAB_BUTTON = (By.XPATH, "//button[contains(text(), '{}')]")
     PAGE_TITLE = (By.TAG_NAME, "h1")
 
-    # ⬅️ 1. קישורי בדיקה - טאב ברירת מחדל (דוחות וקנסות)
+    # ⬅️ 1. Test Links - Default Tab (Reports and Fines)
     TAB_1_EXTERNAL_LINKS = {
         "תשלום דו": "https://city4u.co.il/PortalServicesSite/cityPay/283000/mislaka/77",
         "הודעת תשלום קנס": "https://city4u.co.il/PortalServicesSite/cityPay/283000/mislaka/78",
@@ -36,24 +36,24 @@ class EnforcementPage(BasePage):
         self.ENFORCEMENT_URL = url
 
     def open_enforcement_page(self):
-        """ מנווט ישירות לדף פיקוח עירוני. """
+        """ Navigates directly to the Municipal Enforcement page. """
         self.go_to_url(self.ENFORCEMENT_URL)
-        print(f">>> נווט לדף פיקוח עירוני: {self.ENFORCEMENT_URL}")
+        print(f">>> Navigated to Enforcement page: {self.ENFORCEMENT_URL}")
 
     def get_page_title(self):
-        """ מחזיר את כותרת הדף (לצורך אימות). """
+        """ Returns the page title (for validation). """
         title_element = self.get_element(self.PAGE_TITLE)
         return title_element.text
     
-    # --- מתודות עזר פנימיות (מנגנון היציבות) ---
+    # --- Internal Helper Methods (Stability Mechanism) ---
 
     def _get_link_locator(self, link_text):
-        """ מחזיר את ה-Locator המתאים לקישור נתון (משתמש ב-normalize-space). """
+        """ Returns the appropriate Locator for a given link (uses normalize-space). """
         xpath = f"//a[contains(normalize-space(.), '{link_text}')]"
         return (By.XPATH, xpath)
 
     def _click_link_by_text(self, link_text):
-        """ לחיצה חכמה עם מנגנון Retry נגד Stale Elements. """
+        """ Smart click with a Retry mechanism against Stale Elements. """
         dynamic_locator = self._get_link_locator(link_text)
         
         attempts = 0
@@ -74,22 +74,22 @@ class EnforcementPage(BasePage):
                 except:
                     self.execute_script("arguments[0].click();", link_element)
                 
-                print(f">>> בוצעה לחיצה על '{link_text}' (נסיון {attempts+1}).")
+                print(f">>> Clicked on '{link_text}' (Attempt {attempts+1}).")
                 return 
                 
             except (StaleElementReferenceException, TimeoutException):
-                print(f"⚠️ נסיון {attempts+1} נכשל עבור '{link_text}', מנסה שוב...")
+                print(f"⚠️ Attempt {attempts+1} failed for '{link_text}', trying again...")
                 attempts += 1
                 time.sleep(1)
             except Exception as e:
-                print(f"❌ שגיאה בלתי צפויה בלחיצה על '{link_text}': {str(e)}")
+                print(f"❌ Unexpected error while clicking '{link_text}': {str(e)}")
                 raise e
 
-        raise Exception(f"❌ נכשל ללחוץ על האלמנט '{link_text}' לאחר {max_attempts} נסיונות.")
+        raise Exception(f"❌ Failed to click element '{link_text}' after {max_attempts} attempts.")
 
     def _verify_single_external_link_navigation(self, link_text, expected_url_part):
-        """ פונקציה פנימית: לוחצת, עוברת טאב, מאמת URL וחוזרת. """
-        print(f"\n--- מתחיל בדיקת ניווט: {link_text} ---")
+        """ Internal function: Clicks, switches tab, validates URL, and returns. """
+        print(f"\n--- Starting navigation test: {link_text} ---")
 
         original_window = self.driver.current_window_handle
         
@@ -101,11 +101,11 @@ class EnforcementPage(BasePage):
             )
         except TimeoutException:
             if expected_url_part in self.driver.current_url:
-                 print("⚠️ הלינק נפתח באותו חלון (לא בטאב חדש).")
+                 print("⚠️ Link opened in the same window (not a new tab).")
                  self.driver.back()
                  return
             else:
-                 raise TimeoutException(f"❌ לא נפתח טאב חדש עבור '{link_text}'.")
+                 raise TimeoutException(f"❌ New tab did not open for '{link_text}'.")
             
         new_window = [window for window in self.driver.window_handles if window != original_window][0]
         self.driver.switch_to.window(new_window)
@@ -113,23 +113,22 @@ class EnforcementPage(BasePage):
         try:
             self.wait_for_url_to_contain(expected_url_part, timeout=15)
         except TimeoutException:
-             print(f"⚠️ אזהרה: ה-URL לא הכיל את '{expected_url_part}' בזמן, אבל נמשיך לבדיקה.")
+             print(f"⚠️ Warning: URL did not contain '{expected_url_part}' in time, proceeding with check.")
 
         final_url = self.driver.current_url
         
         if expected_url_part not in final_url:
-            print(f"❌ שגיאת אימות: ציפינו ל-'{expected_url_part}' וקיבלנו '{final_url}'")
+            print(f"❌ Validation error: Expected '{expected_url_part}' but got '{final_url}'")
         else:
-            print(f"✅ אימות ניווט ל'{link_text}' עבר בהצלחה.")
+            print(f"✅ Navigation validation for '{link_text}' passed.")
 
         self.driver.close()
         self.driver.switch_to.window(original_window)
         time.sleep(0.5)
 
     def run_tab_1_external_link_tests(self):
-        """ מריץ לולאה על כל הקישורים החיצוניים בטאב ברירת המחדל (דוחות וקנסות). """
-        print("\n--- מתחיל בדיקת קישורים חיצוניים (טאב דוחות וקנסות) ---")
+        """ Runs a loop over all external links in the default tab (Reports and Fines). """
+        print("\n--- Starting external link test (Reports and Fines Tab) ---")
         for link_name, url_part in self.TAB_1_EXTERNAL_LINKS.items():
             self._verify_single_external_link_navigation(link_name, url_part)
-        print("--- סיום בדיקת קישורים חיצוניים (טאב דוחות וקנסות) ---")
-        
+        print("--- External link test finished (Reports and Fines Tab) ---")

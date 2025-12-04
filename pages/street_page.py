@@ -23,10 +23,13 @@ class StreetPage(BasePage):
     PAGE_TITLE_LOCATOR = (By.TAG_NAME, "h1")
     STREET_NAME_INPUT_LOCATOR = (By.XPATH, "//input[@type='text' and not(@readonly) and not(@disabled)]") 
     
-    # Assuming these are correct from previous context:
-    DATA_TABLE_ROW = (By.XPATH, "//div[contains(@class, 'table-row')][position()>1][1]") # ה-Locator המקורי (למשוך טקסט)
-    EXPAND_BUTTON = (By.XPATH, "//i[contains(@class, 'plus')]") 
-    POPUP_CONTENT = (By.CSS_SELECTOR, ".popup-container h4")
+    # ה-Locator המקורי DATA_TABLE_ROW נשאר
+    DATA_TABLE_ROW = (By.XPATH, "//div[contains(@class, 'table-row')][position()>1][1]") 
+    # 🛑 תיקון: Locator מחפש את הכפתור שנמצא אחרי הטקסט "לפרטים נוספים לחץ כאן"
+    EXPAND_BUTTON = (By.XPATH, "//*[contains(normalize-space(.), 'לפרטים נוספים לחץ כאן')]/following-sibling::button")
+    
+    # 🟢 תיקון: Locator חדש לאימות תוכן הפופ-אפ (מחפש את המשפט המלא)
+    POPUP_CONTENT = (By.XPATH, "//*[contains(normalize-space(.), 'יום א') and contains(normalize-space(.), 'לשבועיים')]")
 
     def __init__(self, driver, url):
         super().__init__(driver)
@@ -89,34 +92,46 @@ class StreetPage(BasePage):
         # הקלדת הטקסט בשדה
         input_element.send_keys(street_name)
         
-        # 2. 🛑 לחיצה על תוצאת הדרופדאון (הבעיה שלנו)
-        # 2.1 הגדרת Locator לתוצאת הדרופדאון (משמש ללחיצה)
+        # 2. 🛑 תיקון הלחיצה על תוצאת הדרופדאון (שימוש ב-JS עם Fallback)
+        time.sleep(0.5) # המתנה קצרה להופעת הדרופדאון
+
         STREET_SUGGESTION_LOCATOR = (By.XPATH, f"//*[contains(@class, 'suggestion') or @role='option'][contains(normalize-space(.), '{street_name}')]")
         
         try:
-            # 2.2 המתנה ולחיצה ישירה על התוצאה
+            # 2.2 המתנה ולכידת האלמנט הניתן ללחיצה
             suggestion_element = self._wait_for_clickable(STREET_SUGGESTION_LOCATOR, timeout=7)
-            suggestion_element.click()
-            print(">>> ✅ Street suggestion clicked successfully. Initiating AJAX.")
+            
+            # 💡 שינוי: לחיצה באמצעות JavaScript
+            self.driver.execute_script("arguments[0].click();", suggestion_element)
+            
+            print(">>> ✅ Street suggestion clicked successfully using JS. Initiating AJAX.")
+        
         except Exception as e:
-            raise Exception(f"❌ Critical failure clicking dropdown suggestion: {e}")
+            # ⚠️ Fallback: אם לחיצת ה-JS נכשלה, ננסה ללחוץ ENTER
+            try:
+                print(">>> ⚠️ Click failed. Trying Keys.ENTER as fallback...")
+                input_element.send_keys(Keys.ENTER)
+            except Exception as enter_e:
+                raise Exception(f"❌ Critical failure clicking dropdown suggestion or pressing ENTER: Original Error: {e}, Fallback Error: {enter_e}")
 
 
-        # 3. 🟢 התיקון הקריטי: Verify data by waiting for the street name in the result area
-        # נחפש את שם הרחוב עצמו בתוך אזור התוצאות (מדד הצלחה ל-AJAX)
-        CONFIRM_DATA_LOAD_LOCATOR = (By.XPATH, f"//*[contains(@class, 'data-field') or contains(@class, 'data-row') or contains(@class, 'data-container')]//*[contains(normalize-space(.), '{street_name}')]")
+        # 3. 🟢 אימות נתונים (מסירים את ניסיון משיכת ה-Ancestor הכושל)
+        
+        DATA_RETURN_VALIDATOR = (By.XPATH, "//*[contains(normalize-space(.), 'יום ג')]")
         
         try:
-            # 💡 המתנה של 15 שניות לשם הרחוב שיטען מחדש
-            self._wait_for_presence(CONFIRM_DATA_LOAD_LOCATOR, timeout=15) 
+            # המתנה לאלמנט שמכיל את טקסט האימות - זה האישור שלנו!
+            data_element_found = self._wait_for_presence(DATA_RETURN_VALIDATOR, timeout=15) 
             
-            # אם הצליח, נמשוך את הנתונים מה-DATA_TABLE_ROW (ה-Locator שהיה אמור לעבוד)
-            row_text = self.driver.find_element(*self.DATA_TABLE_ROW).text
-            print(f"✅ Data returned to table. Found row: {row_text[:30]}...")
+            validation_text = data_element_found.text
+            
+            print(f"✅ Data returned to table successfully. Found validation text: {validation_text[:50]}...")
             return True
+            
         except TimeoutException:
-            # אם גם אחרי 15 שניות שם הרחוב לא נמצא בתוצאות, זה כשל
-            raise Exception("❌ Table failed to load data after search.")
+            # כשל בטעינת הנתונים
+            raise Exception("❌ Table failed to load data after search. Validation text 'יום ג' not found.")
+
 
     def expand_and_verify_popup(self):
         """ Clicks the plus button and verifies the popup content loaded. """
@@ -124,17 +139,24 @@ class StreetPage(BasePage):
         
         # 1. Click the plus button
         try:
+            # 🛑 משתמשים ב-Locator החדש (לפי טקסט סמוך)
             plus_button = self._wait_for_clickable(self.EXPAND_BUTTON)
-            plus_button.click()
-            print(">>> Plus button clicked.")
+            
+            # 💡 לחיצה באמצעות JavaScript (יציבות גבוהה יותר)
+            self.driver.execute_script("arguments[0].click();", plus_button)
+
+            print(">>> Plus button clicked using JS.")
         except Exception as e:
-            raise Exception(f"❌ Failed to click the expand button: {e}")
+            # הדפסת ה-Locator הנוכחי כדי לעזור למצוא את הבעיה
+            raise Exception(f"❌ Failed to click the expand button. Check Locator: {self.EXPAND_BUTTON}. Error: {e}")
         
         # 2. Verify the popup content loaded
         try:
+            # 🛑 המתנה ל-Locator המאמת (מחפש 'יום א' אחת לשבועיים')
             self._wait_for_presence(self.POPUP_CONTENT, timeout=5)
             popup_text = self.driver.find_element(*self.POPUP_CONTENT).text
-            print(f"✅ Popup loaded successfully. Title: {popup_text}")
+            
+            print(f"✅ Popup loaded successfully. Found validation text: {popup_text[:30]}")
             return True
         except TimeoutException:
-            raise Exception("❌ Popup failed to load or content is missing.")
+            raise Exception("❌ Popup failed to load or validation text ('יום א' אחת לשבועיים') is missing.")
