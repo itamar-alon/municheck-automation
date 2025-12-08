@@ -1,17 +1,17 @@
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait 
 from selenium.webdriver.support import expected_conditions as EC 
-from .base_page import BasePage 
-from selenium.common.exceptions import TimeoutException # Imported exception retained
+from selenium.common.exceptions import TimeoutException, ElementClickInterceptedException
+from .base_page import BasePage
+import time
 
 class LoginPage(BasePage):
-    """Class representing the Login page, now supporting password login."""
+    """Class representing the Login page, supporting password login and login within a modal."""
 
-    # --- Locators ---
+    # --- Locators for main login page ---
     PASSWORD_TAB_TEXT = "באמצעות סיסמה"
     PASSWORD_TAB = (By.XPATH, f"//button[text()='{PASSWORD_TAB_TEXT}']")
     
-    # 🛑 Fix: Wider Locator (searches by name, type, or various attributes)
     ID_FIELD = (By.XPATH, "//input[@name='identityNumber' or @name='tz' or @type='text' or @type='number']") 
     PASSWORD_FIELD = (By.NAME, "password") 
     
@@ -20,48 +20,100 @@ class LoginPage(BasePage):
     
     OVERLAY_LOCATOR = (By.CSS_SELECTOR, ".MuiDialog-container[role='presentation']")
 
-
     def __init__(self, driver, url):
         super().__init__(driver) 
         self.LOGIN_URL = url 
 
     def login_with_password(self, user_id: str, user_password: str):
-        """Performs a complete login using ID number and password."""
+        """Performs a complete login using ID number and password on main login page."""
         
         self.go_to_url(self.LOGIN_URL)
         print(f">>> Navigated to: {self.LOGIN_URL}")
         
-        # 1. Clicking the "Password" tab
-        self.click(self.PASSWORD_TAB)
-        print(f">>> Clicked on tab '{self.PASSWORD_TAB_TEXT}'.")
+        try:
+            tab_element = self.wait_for_clickable_element(self.PASSWORD_TAB, timeout=10)
+            self.execute_script("arguments[0].click();", tab_element)
+            print(f">>> Clicked on tab '{self.PASSWORD_TAB_TEXT}' (Safe Click).")
+        except Exception:
+            self.click(self.PASSWORD_TAB)
+            print(f">>> Clicked on tab '{self.PASSWORD_TAB_TEXT}' (Standard Click).")
 
-        # 🛑 Critical Fix: Wait for the ID field to be Clickable
         WebDriverWait(self.driver, 10).until(
             EC.element_to_be_clickable(self.ID_FIELD)
         )
         
-        # 2. Entering ID
         self.enter_text(self.ID_FIELD, user_id) 
         print(">>> Entered ID number")
 
-        # 3. Entering password
         self.enter_text(self.PASSWORD_FIELD, user_password)
         print(">>> Entered password")
 
-        # 4. 🛑 Clicking the final login button (with Overlay handling)
         try:
-            # Wait for Overlay to disappear if it appeared
             self.wait_for_invisibility(self.OVERLAY_LOCATOR, timeout=10)
         except TimeoutException:
             print(">>> Warning: Overlay did not disappear, attempting force click (JS).")
 
-        # Clicking using JavaScript as fallback
         login_button_element = self.wait_for_clickable_element(self.FINAL_LOGIN_BUTTON, timeout=5)
         self.execute_script("arguments[0].click();", login_button_element)
             
         print(f">>> Clicked on button '{self.FINAL_LOGIN_BUTTON_TEXT}'.")
 
     def wait_for_successful_login(self, home_url_part: str):
-        """ Waits for successful navigation after password login. """
         self.wait_for_url_to_contain(home_url_part, timeout=20)
         print(f">>> Successful navigation to URL containing '{home_url_part}'.")
+
+    def login_with_password_inside_modal(self, id_number: str, password: str):
+        """Login inside modal with password tab selection first."""
+
+        user_id_str = str(id_number)
+        user_password_str = str(password)
+
+        # 1. לחיצה על טאב 'באמצעות סיסמה' במודאל
+        try:
+            password_tab = WebDriverWait(self.driver, 5).until(
+                EC.element_to_be_clickable((By.XPATH, "//button[normalize-space(text())='באמצעות סיסמה']"))
+            )
+            password_tab.click()
+            print(">>> Clicked 'באמצעות סיסמה' tab inside modal")
+            time.sleep(1.5)  # המתנה לטעינה
+        except TimeoutException:
+            print(">>> 'באמצעות סיסמה' tab not found or already active, continuing...")
+
+        # 2. הזנת תעודת זהות
+        id_input = WebDriverWait(self.driver, 10).until(
+            EC.element_to_be_clickable((By.XPATH, "//input[@name='tz']"))
+        )
+        id_input.clear()
+        id_input.send_keys(user_id_str)
+        print(">>> ID filled")
+
+        # 3. הזנת סיסמה
+        password_input = WebDriverWait(self.driver, 10).until(
+            EC.element_to_be_clickable((By.XPATH, "//input[@name='password']"))
+        )
+        password_input.clear()
+        password_input.send_keys(user_password_str)
+        print(">>> Password filled")
+
+        # 4. לחיצה על כפתור כניסה בתוך המודאל
+        modal_login_button = WebDriverWait(self.driver, 10).until(
+            EC.element_to_be_clickable((
+                By.XPATH,
+                "//div[contains(@class, 'MuiDialog-container') and contains(@role, 'presentation')]//button[text()='כניסה' and @type='button']"
+            ))
+        )
+        try:
+            modal_login_button.click()
+            print(">>> Clicked login button normally")
+        except ElementClickInterceptedException:
+            print(">>> Click intercepted, retrying via JS")
+            self.execute_script("arguments[0].click();", modal_login_button)
+
+        # 5. המתנה שהמודאל יסגר (כדי לוודא הצלחה)
+        try:
+            WebDriverWait(self.driver, 10).until_not(
+                EC.presence_of_element_located((By.XPATH, "//div[contains(@class, 'MuiDialog-container') and contains(@role, 'presentation')]"))
+            )
+            print(">>> Modal closed successfully")
+        except TimeoutException:
+            print(">>> Modal did NOT close – continue anyway")
