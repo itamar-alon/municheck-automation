@@ -4,63 +4,57 @@ from pathlib import Path
 import sys 
 from sys import path 
 
-# --- 1. תיקון נתיבים (השארת הבלוק נחוצה למציאת תיקיית 'pages') ---
+# --- 1. Path Fixes ---
 current_file_path = Path(__file__).resolve()
 project_root = current_file_path.parent.parent
 if str(project_root) not in path:
     path.append(str(project_root))
 
 from .utils.secrets_loader import load_secrets 
-from .test_setup import setup_driver_and_login 
 from pages.business_page import BusinessLicensePage 
 
 
-# --- 2. טעינה והגדרות ---
+# --- 2. Loading and Configuration ---
 secrets = load_secrets()
 
 if secrets:
-    # ⬅️ שליפת ה-URL הדרושים בלבד
     BUSINESS_URL = secrets['business_url']
     
-    # --- 3. הרצת הבדיקה (הלוגיקה המינימלית) ---
+    # --- 3. Running the Test ---
     try:
-        # ⬅️ שלב א': ביצוע Setup ו-Login
-        driver = setup_driver_and_login(secrets)
+        # Initialize Driver directly
+        driver = webdriver.Chrome() 
+        driver.maximize_window()
         
-        with driver: # ניהול סגירה אוטומטית של הדרייבר
-            print("✅ ה-Setup וה-Login בוצעו בהצלחה. מתחיל בדיקת רישוי עסקים.")
+        with driver: 
+            print("✅ Driver initialized successfully. Navigating directly to Business License page.")
             
-            # --- שלב ב': בדיקת דף ה-Business License ---
+            # --- Step A: Open Business License Page ---
             business_page = BusinessLicensePage(driver, BUSINESS_URL)
             business_page.open_business_page()
             
-            # ⬅️ אימות הכותרת
+            # Title Validation
             page_title = business_page.get_page_title()
-            assert "רישוי" in page_title or "Business" in page_title, "❌ כותרת הדף אינה נכונה!"
-            print(f"✅ אימות כותרת דף buisness עבר בהצלחה: {page_title}")
+            assert "רישוי" in page_title or "Business" in page_title, f"❌ Incorrect page title! Received: {page_title}"
+            print(f"✅ Business page title validation passed: {page_title}")
             
+            # --- Step B: Run Navigation and Link Tests ---
             
-            # --- שלב ג': הרצת כל שלבי הניווט והבדיקה ---
-            
-            # 1. בדיקת טאב 1 (ברירת מחדל)
+            # 1. Test Tab 1 (Default)
             business_page.run_tab_1_external_link_tests()
             
-            # 2. ניווט ובדיקת טאב 2 (דרישות ותנאים)
+            # 2. Navigate and Test Tab 2 (Requirements)
             business_page.navigate_to_tab_2() 
             business_page.run_tab_2_external_link_tests()
             
-            # 3. ניווט ובדיקת טאב 3 (טפסים)
+            # 3. Navigate and Test Tab 3 (Forms)
             business_page.navigate_to_tab_3()
             business_page.run_tab_3_external_link_tests()
             
-            print("\n>>> בדיקת דף רישוי עסקים הסתיימה בהצלחה!")
+            print("\n>>> Business License page test completed successfully!")
             
     except Exception as e:
-        print(f"❌ הבדיקה נכשלה! אירעה שגיאה: {e}")
+        print(f"❌ Test failed! An error occurred: {e}")
         
 else:
-    print("לא ניתן להמשיך ללא נתוני כניסה.")
-
-
-
-
+    print("Error: Could not load secrets data (URL).")

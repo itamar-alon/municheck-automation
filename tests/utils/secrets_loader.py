@@ -5,40 +5,39 @@ from pathlib import Path
 
 def load_secrets(file_name="secrets.json"):
     """
-    טוענת את נתוני התצורה מקובץ JSON באמצעות חישוב נתיב מוחלט.
-    הקוד מניח שהקובץ secrets.json נמצא בשורש הפרויקט, שתי רמות מעל קובץ זה.
+    Loads configuration data from a JSON file using an absolute path calculation.
+    The code assumes that the secrets.json file is located in the project root,
+    three levels above this file.
     """
     
-    # 1. קביעת הנתיב המוחלט של קובץ secrets_loader.py
+    # 1. Determine the absolute path of the secrets_loader.py file
     script_path = Path(__file__).resolve() 
     
-    # 2. חישוב שורש הפרויקט (עולים מ-utils/ ל-tests/ ואז ל-SELENIUM SCRIPTS/)
-    # אם הקובץ נמצא ב-tests/utils/, עלינו לעלות שתי רמות.
-    project_root = script_path.parent.parent.parent # ⬅️ תיקון: 3 רמות אם הקובץ נמצא ב-tests/utils/
+    # 2. Calculate the project root (move up from utils/ to tests/ and then to SELENIUM SCRIPTS/)
+    # Since the file is in tests/utils/, we need to move up three levels.
+    project_root = script_path.parent.parent.parent 
     
-    # *הערה:* מאחר והמבנה הוא SELENIUM SCRIPTS -> tests -> utils -> secrets_loader.py, 
-    # אנו צריכים לעלות 3 רמות כדי להגיע לשורש (SELENIUM SCRIPTS).
+    # Note: Structure is SELENIUM SCRIPTS -> tests -> utils -> secrets_loader.py
     
-    
-    # 3. בניית הנתיב המלא לקובץ secrets.json
+    # 3. Build the full path to the secrets.json file
     file_path = project_root / file_name
     
-    # הדפסת הנתיב שמועבר ל-open()
-    print(f"*** מנסה לטעון נתונים מנתיב מוחלט: {file_path}") 
+    # Print the path being passed to open()
+    print(f"*** Attempting to load data from absolute path: {file_path}") 
     
     try:
-        # פתיחת הקובץ
+        # Opening the file
         with open(file_path, 'r', encoding='utf-8') as f:
             return json.load(f)
     except FileNotFoundError:
-        print(f"❌ שגיאה: קובץ {file_path} לא נמצא. ודא שהוא נמצא בשורש הפרויקט.")
+        print(f"❌ Error: File {file_path} not found. Ensure it is located in the project root.")
         return None
     except json.JSONDecodeError:
-        print(f"❌ שגיאה: קובץ {file_path} אינו בפורמט JSON תקין. ודא שאינו ריק.")
+        print(f"❌ Error: File {file_path} is not in a valid JSON format. Ensure it is not empty.")
         return None
 
-# --- בדיקת תקינות ---
+# --- Verification ---
 if __name__ == '__main__':
     data = load_secrets()
     if data:
-        print("\n✅ טעינת secrets עברה בהצלחה!")
+        print("\n✅ Secrets loading successful!")

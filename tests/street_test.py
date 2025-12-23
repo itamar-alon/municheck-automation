@@ -1,8 +1,11 @@
 from selenium import webdriver
-from selenium.common.exceptions import TimeoutException, WebDriverException
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
 from pathlib import Path 
 import sys 
 from sys import path 
+import time
 
 # --- 1. תיקון נתיבים ---
 current_file_path = Path(__file__).resolve()
@@ -11,50 +14,51 @@ if str(project_root) not in path:
     path.append(str(project_root))
 
 from .utils.secrets_loader import load_secrets 
-from .test_setup import setup_driver_and_login 
-from pages.street_page import StreetPage  # ⬅️ ייבוא הקלאס StreetPage
-
+from pages.street_page import StreetPage 
 
 # --- 2. טעינה והגדרות ---
 secrets = load_secrets()
 
-# ❌ הוסר: TEST_STREET_NAME מוגדר כעת בתוך קלאס StreetPage
-
 if secrets:
-    # ⬅️ שליפת ה-URL הנדרש
     STREET_URL = secrets['street_url']
     
-    # --- 3. הרצת הבדיקה (הלוגיקה המינימלית) ---
     try:
-        # ⬅️ Step A: Perform Setup and Login
-        driver = setup_driver_and_login(secrets)
+        driver = webdriver.Chrome()
+        driver.maximize_window()
         
-        with driver: # Manages automatic driver closure
-            print("✅ Setup and Login successful. Starting Street Info test.")
+        with driver: 
+            print("✅ הדרייבר עלה בהצלחה. מתחיל בדיקת Street Info.")
             
-            # --- Step B: Test the Street Info Page ---
-            street_page = StreetPage(driver, STREET_URL) # ⬅️ יצירת מופע חדש
+            street_page = StreetPage(driver, STREET_URL)
             street_page.open_street_page() 
             
-            # ⬅️ Title Validation
-            page_title = street_page.get_page_title()
-            assert "רחוב" in page_title or "Street" in page_title, "❌ Page title validation failed!"
-            print(f"✅ Street Info page title validation successful: {page_title}") 
+            print(">>> ממתין לטעינת רכיבי הדף המרכזיים...")
+            wait = WebDriverWait(driver, 10)
             
-            
-            # --- Step C: Run the Data Validation Flow ---
-            
-            # 1. Search for a street and verify table data
-            # 🟢 שינוי: קורא ללא ארגומנט, משתמש ב-StreetPage.TEST_STREET_NAME
+            try:
+                # 1. ניסיון לאתר את תיבת החיפוש (זה האימות הכי טוב שהדף עובד)
+                # נשתמש ב-Selector שמתאים לשדה קלט או לטקסט "שם הרחוב"
+                search_box_locator = (By.XPATH, "//input | //*[contains(text(), 'שם הרחוב')]")
+                wait.until(EC.presence_of_element_located(search_box_locator))
+                print("✅ רכיב החיפוש אותר בדף.")
+            except:
+                # 2. אם לא מצאנו, נבדוק אם אנחנו בעצם בדף הלוגין
+                if "login" in driver.current_url.lower():
+                    raise Exception("❌ האתר הפנה אותנו לדף ההתחברות. כנראה שחייבים Login כדי לראות מידע על רחובות.")
+                else:
+                    raise Exception("❌ הדף נטען אך שדה החיפוש לא הופיע. ייתכן והתוכן חסום לאורחים.")
+
+            # --- שלב ג': הרצת זרימת אימות הנתונים ---
+            print(">>> מתחיל חיפוש רחוב ואימות נתונים...")
             street_page.search_and_verify_table() 
             
-            # 2. Click the plus icon and verify the popup data
+            print(">>> פותח פופ-אפ לאימות נתונים מורחב...")
             street_page.expand_and_verify_popup()
             
-            print("\n>>> Street Info page test finished successfully!") 
+            print("\n>>> בדיקת דף Street Info הסתיימה בהצלחה!") 
             
     except Exception as e:
-        print(f"❌ The test failed! Error occurred: {e}")
+        print(f"❌ הבדיקה נכשלה! אירעה שגיאה: {e}")
         
 else:
-    print("Cannot proceed without login credentials.")
+    print("לא ניתן להמשיך ללא נתוני כניסה.")

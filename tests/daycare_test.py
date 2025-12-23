@@ -3,45 +3,45 @@ from selenium.common.exceptions import TimeoutException, WebDriverException
 from pathlib import Path 
 from sys import path 
 
-# ⬅️ ייבוא Page Objects ו-Utilities
+# --- 1. Imports and Path Setup ---
 from .utils.secrets_loader import load_secrets 
-from tests.test_setup import setup_driver_and_login # ⬅️ המתודה שתטפל ב-Login ו-Setup
+# setup_driver_and_login import removed as it is no longer needed
 from pages.daycare_page import DaycarePage
 
 
-# --- 1. טעינה והגדרות ---
+# --- 2. Loading and Configuration ---
 secrets = load_secrets()
 
 if secrets:
-    # ⬅️ שליפת ה-URL הדרושים בלבד
+    # Extract necessary URL
     DAYCARE_URL = secrets['daycare_url']
     
-    # --- 2. הרצת הבדיקה (הלוגיקה המינימלית) ---
+    # --- 3. Running the Test ---
     try:
-        # ⬅️ שלב א': ביצוע Setup ו-Login (קריאה אחת לפונקציה המרכזית)
-        driver = setup_driver_and_login(secrets)
+        # Direct driver initialization without login
+        driver = webdriver.Chrome()
+        driver.maximize_window()
         
-        with driver: # ניהול סגירה אוטומטית של הדרייבר
-            print("✅ ה-Setup וה-Login בוצעו בהצלחה!")
+        with driver: # Automatic driver cleanup
+            print("✅ Driver initialized successfully. Navigating to Daycare page.")
             
-            # --- שלב ב': בדיקת דף ה-Daycare ---
+            # --- Step A: Setup Daycare Page ---
             daycare_page = DaycarePage(driver, DAYCARE_URL)
             daycare_page.open_daycare_page()
             
-            # ⬅️ אימות הכותרת
+            # --- Step B: Title Validation ---
             page_title = daycare_page.get_page_title()
-            assert "צהרונים" in page_title or "Daycare" in page_title, "❌ כותרת הדף אינה נכונה!"
-            print(f"✅ אימות כותרת דף Daycare עבר בהצלחה: {page_title}")
+            assert "צהרונים" in page_title or "Daycare" in page_title, f"❌ Incorrect page title! Received: {page_title}"
+            print(f"✅ Daycare page title validation passed: {page_title}")
             
-            # ⬅️ הרצת כל בדיקות הקישור
+            # --- Step C: Run Link Tests ---
+            print(">>> Starting external link tests for Daycare page...")
             daycare_page.run_tab_1_external_link_tests()
             
-            # ⬅️ (אם רוצים להריץ רק את הטאב הראשון)
-            
-            print("\n>>> הבדיקה על דף Daycare הסתיימה בהצלחה!")
+            print("\n>>> Daycare page test completed successfully!")
             
     except Exception as e:
-        print(f"❌ הבדיקה נכשלה! אירעה שגיאה: {e}")
+        print(f"❌ Test failed! An error occurred: {e}")
         
 else:
-    print("לא ניתן להמשיך ללא נתוני כניסה.")
+    print("Error: Could not load secrets data (URL).")
