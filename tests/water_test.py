@@ -1,65 +1,55 @@
+import sys
+from pathlib import Path
 from selenium import webdriver
-from selenium.common.exceptions import TimeoutException, WebDriverException
-from pathlib import Path 
-import sys 
-from sys import path 
+from datetime import datetime
 
-# --- 1. Path Fixes ---
+# --- Path Setup ---
 current_file_path = Path(__file__).resolve()
 project_root = current_file_path.parent.parent
-if str(project_root) not in path:
-    path.append(str(project_root))
+if str(project_root) not in sys.path:
+    sys.path.append(str(project_root))
 
-from .utils.secrets_loader import load_secrets 
-# setup_driver_and_login removed as it is no longer needed
-from pages.water_page import WaterPage 
+from tests.utils.secrets_loader import load_secrets 
+from pages.water_page import WaterPage
 
-
-# --- 2. Loading and Configuration ---
+# --- Config ---
 secrets = load_secrets()
+SCREENSHOT_DIR = project_root / "screenshots"
+SCREENSHOT_DIR.mkdir(exist_ok=True)
 
-if secrets:
-    # Fetch required URL
-    WATER_URL = secrets['water_url']
+driver = webdriver.Chrome()
+driver.maximize_window()
+
+try:
+    print("🚀 Starting Water Interface Test")
+    page = WaterPage(driver, secrets['water_url'])
+    page.open_water_page()
     
-    # --- 3. Running the Test ---
-    try:
-        # Direct driver initialization without login
-        driver = webdriver.Chrome() 
-        driver.maximize_window()
-        
-        with driver: # Manages automatic driver closure
-            print("✅ Driver initialized successfully. Starting Water interface test.")
-            
-            # --- Step A: Setup Water Page ---
-            water_page = WaterPage(driver, WATER_URL) 
-            water_page.open_water_page()
-            
-            # --- Step B: Title Validation ---
-            page_title = water_page.get_page_title()
-            assert "מים" in page_title or "Water" in page_title, f"❌ Page title validation failed! Received: {page_title}"
-            print(f"✅ Water page title validation successful: {page_title}")
-            
-            # --- Step C: Run All Navigation and Link Tests ---
-            
-            # 1. Test Tab 1 (Default)
-            print(">>> Running tests for Tab 1...")
-            water_page.run_tab_1_external_link_tests() 
-            
-            # 2. Test Tab 2
-            water_page.navigate_to_tab_2()
-            print(">>> Running tests for Tab 2...")
-            water_page.run_tab_2_external_link_tests()
-            
-            # 3. Test Tab 3
-            water_page.navigate_to_tab_3()
-            print(">>> Running tests for Tab 3...")
-            water_page.run_tab_3_external_link_tests()
-            
-            print("\n>>> Water interface test finished successfully!")
-            
-    except Exception as e:
-        print(f"❌ The test failed! Error occurred: {e}")
-        
-else:
-    print("Error: Could not load secrets data (URL).")
+    # Validation
+    title = page.get_page_title()
+    print(f"✅ Page Title: {title}")
+    assert "מים" in title or "Water" in title, f"Unexpected title: {title}"
+    
+    # טאב 1
+    assert page.run_tab_1_tests(), "Tab 1 has broken links"
+    
+    # טאב 2
+    page.navigate_to_tab_2()
+    assert page.run_tab_2_tests(), "Tab 2 has broken links"
+    
+    # טאב 3
+    page.navigate_to_tab_3()
+    assert page.run_tab_3_tests(), "Tab 3 has broken links"
+    
+    print("\n>>> ✅ Water Test finished successfully!")
+
+except Exception as e:
+    timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    screenshot_path = str(SCREENSHOT_DIR / f"water_fail_{timestamp}.png")
+    driver.save_screenshot(screenshot_path)
+    print(f"\n❌ TEST FAILED: {e}")
+    print(f"📸 Screenshot saved to: {screenshot_path}")
+    raise e
+
+finally:
+    driver.quit()
