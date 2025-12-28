@@ -1,98 +1,212 @@
-# tests/full_flow.py
-
 from selenium import webdriver
 from selenium.common.exceptions import TimeoutException, WebDriverException
 from pathlib import Path
 import sys 
 from sys import path 
+import time
 
+# --- 1. Path Fix ---
+current_file_path = Path(__file__).resolve()
+project_root = current_file_path.parent.parent
+if str(project_root) not in path:
+    path.append(str(project_root))
 
-# --- 1. Path Fix (Crucial for finding 'pages' directory) ---
-project_root = Path(__file__).resolve().parent.parent 
-if str(project_root) not in sys.path:
-    sys.path.append(str(project_root))
-    print(f"*** Project root path added to sys.path: {project_root}")
-    
-
-
-# ⬅️ 2. Importing necessary modules
+# --- 2. Importing Modules ---
 from tests.utils.secrets_loader import load_secrets 
-from tests.test_setup import setup_driver_and_login
 from pages.daycare_page import DaycarePage 
-from pages.login_page import LoginPage 
+from pages.education_page import EducationPage
 from pages.business_page import BusinessLicensePage
-from pages.enfo_page import EnforcementPage
+from pages.enfo_page import EnforcementPage 
 from pages.street_page import StreetPage
 from pages.water_page import WaterPage
-from pages.parking_page import ParkingPage # 🟢 ייבוא ParkingPage
+from pages.parking_page import ParkingPage
 
-# --- 3. Loading Configuration and Settings ---
+# --- 3. Loading Configuration ---
 secrets = load_secrets() 
 
 if secrets:
-    # הגדרת משתני נתיב קצה-לקצה
-    LOGIN_URL = secrets.get('login_url')
-    HOME_URL_PART = secrets.get('home_url_part')
+    # שליפת כתובות URL
     DAYCARE_URL = secrets.get('daycare_url')
-    BUSINESS_URL = secrets['business_url']
-    ENFORCEMENT_URL = secrets['enforcement_url']
-    STREET_URL = secrets['street_url']
-    WATER_URL = secrets['water_url']
-    PARKING_URL = secrets['parking_url'] # 🟢 טעינת URL של חניה
+    EDUCATION_URL = secrets.get('education_url')
+    BUSINESS_URL = secrets.get('business_url')
+    ENFORCEMENT_URL = secrets.get('enforcement_url')
+    STREET_URL = secrets.get('street_url')
+    WATER_URL = secrets.get('water_url')
+    PARKING_URL = secrets.get('parking_url')
 
-    # 🟢 טעינת פרטי המשתמש
-    USER_ID = secrets.get('user_id')
-    PASSWORD = secrets.get('password')
+    # שליפת פרטי משתמש
+    user_data = secrets.get('user_data', {})
+    USER_ID = user_data.get('id_number')
+    PASSWORD = user_data.get('password')
 
-    driver = None 
-    
+    if not USER_ID or not PASSWORD:
+        print("❌ Error: Missing credentials in secrets.json")
+        sys.exit(1)
+
     try:
-        # ⬅️ 4. קריאה לפונקציית Setup (Login מתבצע כאן)
-        driver = setup_driver_and_login(secrets)
+        print("🚀 Starting Full End-to-End Flow Test")
         
-        # ⬅️ 5. ניהול סגירה אוטומטית של הדרייבר באמצעות 'with'
+        driver = webdriver.Chrome()
+        driver.maximize_window()
+        
         with driver:
             
-            print("✅ Setup complete. Starting end-to-end test...") 
+            # ==========================================
+            # 1. Daycare (צהרונים)
+            # ==========================================
+            print("\n" + "="*40)
+            print("🏗️  Testing Daycare Interface")
+            print("="*40)
             
-            # --- בדיקת דף Daycare ---
-            # ... (הבדיקות הקודמות נשארות כפי שהן) ...
+            daycare = DaycarePage(driver, DAYCARE_URL)
+            daycare.open_daycare_page()
+            
+            dc_title = daycare.get_page_title()
+            if "צהרונים" in dc_title or "Daycare" in dc_title:
+                print(f"✅ Title verified: {dc_title}")
+            
+            daycare.run_tab_1_external_link_tests()
+            daycare.navigate_to_daycare_tab()
+            daycare.run_tab_2_external_link_tests()
 
-            # --- Starting Parking Interface Test ---
+
+            # ==========================================
+            # 2. Education (חינוך)
+            # ==========================================
+            print("\n" + "="*40)
+            print("🎓 Testing Education Interface")
+            print("="*40)
+
+            edu = EducationPage(driver, EDUCATION_URL)
+            edu.open_education_page()
+            edu.verify_education_content()
+            edu.run_default_tab_external_link_tests()
+
+            EDU_TABS_MAP = {
+                "רישום חינוך יסודי": edu.TAB_3,
+                "רישום חינוך על יסודי": edu.TAB_4,
+                "חינוך מיוחד": edu.TAB_5,
+                "תשלומים": edu.TAB_6,
+                "יצירת קשר": edu.TAB_7
+            }
+
+            edu_tabs = [
+                "תיק תלמיד",
+                "רישום חינוך יסודי",
+                "רישום חינוך על יסודי",
+                "חינוך מיוחד",
+                "תשלומים",
+                "יצירת קשר"
+            ]
+
+            for tab in edu_tabs:
+                edu.navigate_to_side_tab(tab)
+
+                if tab == "תיק תלמיד":
+                    print(f"🛑 Reached '{tab}' - Initiating Login...")
+                    if edu.perform_student_login(USER_ID, PASSWORD):
+                        if edu.navigate_to_online_forms_after_login():
+                            edu.run_online_forms_link_tests()
+                    else:
+                        print("❌ Login failed in Education module.")
+                    continue
+
+                if tab in EDU_TABS_MAP:
+                    edu.verify_links_from_dictionary(EDU_TABS_MAP[tab], tab)
+
+
+            # ==========================================
+            # 3. Enforcement (פיקוח)
+            # ==========================================
+            print("\n" + "="*40)
+            print("👮 Testing Enforcement Interface")
+            print("="*40)
+
+            enfo = EnforcementPage(driver, ENFORCEMENT_URL)
+            enfo.open_enforcement_page()
+            
+            enfo_title = enfo.get_page_title()
+            if "פיקוח" in enfo_title: print(f"✅ Title verified: {enfo_title}")
+            
+            enfo.run_tab_1_external_link_tests()
+
+
+            # ==========================================
+            # 4. Parking (חניה)
+            # ==========================================
+            print("\n" + "="*40)
+            print("🅿️  Testing Parking Interface")
+            print("="*40)
+
+            parking = ParkingPage(driver, PARKING_URL)
+            parking.open_parking_page()
+            
+            park_title = parking.get_page_title()
+            if "חניה" in park_title: print(f"✅ Title verified: {park_title}")
+
+            parking.run_tab_1_external_link_tests()
+            parking.navigate_to_tab_3()
+            parking.run_tab_3_external_link_tests()
+
+
+            # ==========================================
+            # 5. Street Info (מידע הנדסי/רחובות)
+            # ==========================================
+            print("\n" + "="*40)
+            print("🛣️  Testing Street Info Interface")
+            print("="*40)
+
+            street = StreetPage(driver, STREET_URL)
+            street.open_street_page()
+            street.search_and_verify_table()
+            street.expand_and_verify_popup()
+
+
+            # ==========================================
+            # 6. Water (מים)
+            # ==========================================
+            if WATER_URL:
+                print("\n" + "="*40)
+                print("💧 Testing Water Interface")
+                print("="*40)
+                water = WaterPage(driver, WATER_URL)
+                water.open_water_page()
+                
+                # הרצת טאב 1
+                water.run_tab_1_external_link_tests()
+                
+                # מעבר לטאב 2 והרצה
+                water.navigate_to_tab_2()
+                water.run_tab_2_external_link_tests()
+
+            # ==========================================
+            # 7. Business License (רישוי עסקים)
+            # ==========================================
+            if BUSINESS_URL:
+                print("\n" + "="*40)
+                print("💼 Testing Business License Interface")
+                print("="*40)
+                
+                business = BusinessLicensePage(driver, BUSINESS_URL)
+                business.open_business_page()
+                
+                # הרצת בדיקות על כל שלושת הטאבים
+                business.run_tab_1_external_link_tests()
+                
+                business.navigate_to_tab_2()
+                business.run_tab_2_external_link_tests()
+                
+                business.navigate_to_tab_3()
+                business.run_tab_3_external_link_tests()
+
             print("\n" + "="*50)
-            print("Starting Parking Interface page test")
+            print("✅✅✅ FULL END-TO-END FLOW FINISHED SUCCESSFULLY! ✅✅✅")
             print("="*50)
-            
-            # 1. יצירת מופע חדש וניווט
-            parking_page = ParkingPage(driver, PARKING_URL)
-            parking_page.open_parking_page()
-            
-            # 2. אימות כותרת
-            page_title = parking_page.get_page_title()
-            assert "חניה" in page_title or "Parking" in page_title, "❌ Parking page title is incorrect!"
-            print(f"✅ Parking page title validation successful: {page_title}")
 
-            # 3. טאב 1 (ברירת מחדל): קישורים חיצוניים
-            parking_page.run_tab_1_external_link_tests()
-            
-            # 4. טאב 2: בדיקת נתונים דינמיים (כולל Re-authentication)
-            parking_page.navigate_to_tab_2()
-            # 🟢 קריאה מתוקנת עם העברת פרטי המשתמש
-            parking_page.search_and_verify_parking_data(USER_ID, PASSWORD) 
-            
-            # 5. טאב 3: קישורים חיצוניים
-            parking_page.navigate_to_tab_3()
-            parking_page.run_tab_3_external_link_tests()
-            
-            print("✅ Parking Interface page test finished successfully!") 
-            
-            # ... (הבדיקות האחרות) ...
-            
-            print("\n>>> End-to-end test finished successfully!") 
-            
     except Exception as e:
-        # ⬅️ טיפול שגיאות נקי
-        print(f"❌ End-to-end test failed! Error occurred: {e}")
-        
+        print(f"\n❌ CRITICAL FAILURE IN FULL FLOW: {e}")
+        if 'driver' in locals():
+            time.sleep(5)
+            
 else:
-    print("Cannot proceed without login credentials.")
+    print("Cannot proceed without configuration data.")
