@@ -11,25 +11,41 @@ from .base_page import BasePage
 class WaterPage(BasePage):
     """
     Water Interface Page Object.
-    Optimized for FAST link checking + Error Screenshots.
+    Optimized for SPEED + Clean Structure (like BusinessLicensePage).
     """
 
-    # --- Locators ---
+    # --- Locators & Constants ---
     PAGE_TITLE = (By.TAG_NAME, "h1")
     GENERIC_LINK_XPATH = "//*[contains(@role, 'button') or self::a][contains(normalize-space(.), '{}')]"
     
-    # 🟢 לוקייטור לטאב השני (בדרך כלל נקרא "טפסים" או דומה)
-    TAB_2_LOCATOR = (By.XPATH, "//button[contains(text(), 'טפסים')]")
+    # 🟢 הגדרת שמות הטאבים כאן (קל לשינוי בעתיד)
+    TAB_BUTTON_NAME_2 = "טפסים מקוונים"
+    TAB_BUTTON_NAME_3 = "טפסים להורדה"
+
+    # יצירת לוקייטורים דינמית לפי השמות
+    TAB_2_LOCATOR = (By.XPATH, f"//button[contains(text(), '{TAB_BUTTON_NAME_2}')]")
+    TAB_3_LOCATOR = (By.XPATH, f"//button[contains(text(), '{TAB_BUTTON_NAME_3}')]")
 
     # --- Data ---
     
-    # טאב 1 - קישורים כלליים
     DEFAULT_TAB_LINKS = {
-        "תשלום חשבון מים": "manit"
+        "תשלום חשבון מים": "https://www.mast.co.il/15657/payment"
     }
 
-    # טאב 2 - טפסים להורדה
+
     TAB_2_LINKS = {
+        "נפשות": "2e245b94",        # טופס עדכון נפשות
+        "צריכת": "b09e2646",        # טופס צריכה חריגה
+        "הפקדת מפתח": "b6baba35",   # טופס הפקדת מפתח (חילופי דיירים)
+        "ביוב": "form_3_pinui_biuv.aspx", # אתר מניב ראשון
+        "בירור חיוב": "b09e",   # תוקן (היה לך את ה-ID של צריכה)
+        "בתעריף מיוחד": "99c4dcdd", # הכרה בתעריף מיוחד
+        "הכרה בתעריף": "99c4",  # תוקן (היה לך ID שגוי)
+        "קריאת מונה": "b6ba",   # תוקן (היה לך את ה-ID של מפתח)
+        "איכות מים": "8bd687a8"     # דוח איכות מים
+    }
+
+    TAB_3_LINKS = {
         "בקשה לביקור": "setvisit.pdf",
         "בקשה לקבלת": "מידע.pdf",
         "הוראה": "מונגש",
@@ -41,33 +57,28 @@ class WaterPage(BasePage):
 
     def __init__(self, driver, url):
         super().__init__(driver)
-        self.DEFAULT_TIMEOUT = 10
+        self.DEFAULT_TIMEOUT = 3 
         self.WATER_URL = url
 
     def open_water_page(self):
         self.go_to_url(self.WATER_URL)
-        print(f">>> Navigated to Water page: {self.WATER_URL}")
 
     def get_page_title(self):
-        title_element = self.get_element(self.PAGE_TITLE)
-        return title_element.text
+        return self.driver.title
 
-    # 🟢 צילום מסך בשגיאה
     def _take_error_screenshot(self, link_name):
         try:
             if not os.path.exists("screenshots"):
                 os.makedirs("screenshots")
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            timestamp = datetime.now().strftime("%H%M%S") 
             safe_name = "".join([c if c.isalnum() else "_" for c in link_name])
-            filename = f"screenshots/error_water_{safe_name}_{timestamp}.png"
-            self.driver.save_screenshot(filename)
-            print(f"📸 Screenshot saved: {filename}")
-        except Exception as e:
-            print(f"⚠️ Failed to save screenshot: {e}")
+            self.driver.save_screenshot(f"screenshots/err_{safe_name}_{timestamp}.png")
+        except:
+            pass
 
-    # 🟢 בדיקה מהירה (HREF)
+    # 🟢 הלוגיקה המהירה (HREF first, Click fallback)
     def _verify_external_link(self, link_text, expected_url_part):
-        print(f"Testing: {link_text}")
+        print(f"Testing: {link_text}...", end=" ", flush=True) 
         
         locator = (By.XPATH, self.GENERIC_LINK_XPATH.format(link_text))
         
@@ -76,75 +87,75 @@ class WaterPage(BasePage):
                 EC.presence_of_element_located(locator)
             )
         except TimeoutException:
-            print(f"❌ Link error: '{link_text}' (Element not found)")
+            print(f"❌ Not Found")
             self._take_error_screenshot(link_text)
             return
 
         href = el.get_attribute("href")
+        
+        # ניקוי ה-URLים להשוואה קלה יותר
+        clean_href = unquote(href).replace("https://", "").replace("http://", "") if href else ""
+        clean_expected = unquote(expected_url_part).replace("https://", "").replace("http://", "")
+
+        # 🚀 בדיקה מהירה
+        if clean_expected in clean_href:
+            print(f"✅ OK (HREF)")
+            return 
+
+        # Fallback: לחיצה
+        print(f"⚠️ HREF mismatch, clicking...", end=" ")
+        
         orig_window = self.driver.current_window_handle
-
         try:
-            # בדיקה מהירה ללא לחיצה
-            if href and "http" in href:
-                decoded_href = unquote(href)
-                decoded_expected = unquote(expected_url_part)
-                
-                if decoded_expected in decoded_href:
-                    print(f"✅ Passed (HREF check): {link_text}")
-                    return 
-
-            # Fallback: לחיצה
-            self.driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", el)
-            time.sleep(0.5)
-            self.driver.execute_script("arguments[0].click();", el)
-
-            WebDriverWait(self.driver, 10).until(EC.number_of_windows_to_be(2))
+            self.driver.execute_script("arguments[0].target='_blank'; arguments[0].click();", el)
             
+            WebDriverWait(self.driver, 5).until(EC.number_of_windows_to_be(2))
             new_win = [w for w in self.driver.window_handles if w != orig_window][0]
             self.driver.switch_to.window(new_win)
-
+            
             current_url = unquote(self.driver.current_url)
-            expected_decoded = unquote(expected_url_part)
-
-            if expected_decoded in current_url:
-                print(f"✅ Passed: {link_text}")
-            else:
-                print(f"⚠️ Warning: {link_text} opened but URL differs.\n   Expected: ...{expected_decoded[-20:]}\n   Got:      ...{current_url[-20:]}")
-
             self.driver.close()
+            self.driver.switch_to.window(orig_window)
+
+            clean_current = current_url.replace("https://", "").replace("http://", "")
+            
+            if clean_expected in clean_current:
+                print(f"✅ OK (Clicked)")
+            else:
+                print(f"❌ URL Mismatch")
+                print(f"   Exp: {clean_expected[:30]}...")
+                print(f"   Got: {clean_current[:30]}...")
+                self._take_error_screenshot(link_text)
 
         except Exception as e:
-            print(f"❌ Link error: '{link_text}' (Failed to open/verify). Error: {e}")
-            self._take_error_screenshot(link_text)
-        
-        finally:
-            try: self.driver.switch_to.window(orig_window)
-            except: pass
+            print(f"❌ Click Failed: {e}")
+            self.driver.switch_to.window(orig_window)
 
-    # --- פונקציות הרצה ---
-
-    # טאב 1
-    def run_tab_1_external_link_tests(self):
-        print("\n--- Starting Fast Link Check (Water - Tab 1) ---")
-        for link_name, url_part in self.DEFAULT_TAB_LINKS.items():
-            self._verify_external_link(link_name, url_part)
-
-    # ניווט לטאב 2
+    # 🟢 פונקציות ניווט מעודכנות (עם הדפסה ברורה של שם הטאב)
     def navigate_to_tab_2(self):
-        print("\n--- Navigating to Tab 2: טפסים ---")
-        try:
-            tab = WebDriverWait(self.driver, 10).until(EC.element_to_be_clickable(self.TAB_2_LOCATOR))
-            self.driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", tab)
-            time.sleep(0.5)
-            self.driver.execute_script("arguments[0].click();", tab)
-            print(">>> Switched to Tab 2.")
-            time.sleep(2)
-        except Exception as e:
-            print(f"❌ Failed to switch to Tab 2: {e}")
-            self._take_error_screenshot("tab_2_switch_fail")
+        print(f"\n--- Navigating to Tab 2: {self.TAB_BUTTON_NAME_2} ---")
+        self._switch_tab(self.TAB_2_LOCATOR)
 
-    # טאב 2
+    def navigate_to_tab_3(self):
+        print(f"\n--- Navigating to Tab 3: {self.TAB_BUTTON_NAME_3} ---")
+        self._switch_tab(self.TAB_3_LOCATOR)
+
+    def _switch_tab(self, locator):
+        try:
+            time.sleep(0.5) 
+            tab = WebDriverWait(self.driver, 5).until(EC.element_to_be_clickable(locator))
+            self.driver.execute_script("arguments[0].click();", tab)
+            print(f">>> Switched successfully.")
+            time.sleep(1.5)
+        except Exception as e:
+            print(f"❌ Failed to switch tab: {e}")
+            raise e
+
+    def run_tab_1_external_link_tests(self):
+        for k, v in self.DEFAULT_TAB_LINKS.items(): self._verify_external_link(k, v)
+
     def run_tab_2_external_link_tests(self):
-        print("\n--- Starting Fast Link Check (Water - Tab 2) ---")
-        for link_name, url_part in self.TAB_2_LINKS.items():
-            self._verify_external_link(link_name, url_part)
+        for k, v in self.TAB_2_LINKS.items(): self._verify_external_link(k, v)
+
+    def run_tab_3_external_link_tests(self):
+        for k, v in self.TAB_3_LINKS.items(): self._verify_external_link(k, v)

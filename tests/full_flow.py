@@ -179,6 +179,9 @@ if secrets:
                 water.navigate_to_tab_2()
                 water.run_tab_2_external_link_tests()
 
+                water.navigate_to_tab_3()
+                water.run_tab_3_external_link_tests()
+
             # ==========================================
             # 7. Business License (רישוי עסקים)
             # ==========================================

@@ -20,7 +20,7 @@ SCREENSHOT_DIR = project_root / "screenshots"
 SCREENSHOT_DIR.mkdir(exist_ok=True)
 
 try:
-    print("🚀 Starting Water Interface Test")
+    print("Starting Water Interface Test")
     driver = webdriver.Chrome()
     driver.maximize_window()
     
@@ -40,6 +40,9 @@ try:
         # --- מעבר לטאב 2 וריצה ---
         page.navigate_to_tab_2()
         page.run_tab_2_external_link_tests()
+
+        page.navigate_to_tab_3()
+        page.run_tab_3_external_link_tests()
         
         print("\n✅ Water Interface test finished successfully!")
 
