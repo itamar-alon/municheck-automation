@@ -1,0 +1,317 @@
+*** Attempting to load data from absolute path: C:\Users\Itamara\projects\selenium scripts\secrets.json
+Testing Daycare: https://mypp.rishonlezion.muni.il/daycare/
+>>> Navigated to Daycare page: https://mypp.rishonlezion.muni.il/daycare/
+
+--- Starting Fast Link Check (Daycare - Tab 1) ---
+Testing: איזור אישי... ✅ OK (HREF)
+Testing: רישום לצהרוני בית הספר... ✅ OK (HREF)
+
+>>> Navigating to Tab 2: https://mypp.rishonlezion.muni.il/daycare/?tab=1
+
+--- Starting Fast Link Check (Daycare - Tab 2) ---
+Testing: אזור אישי... ✅ OK (HREF)
+Testing: רישום מעונות יום... ✅ OK (HREF)
+Testing: רישום מעון חרצית... ✅ OK (HREF)
+>>> Navigated to Education Interface: https://mypp.rishonlezion.muni.il/education/
+
+--- Starting Content Validation ---
+✅ Education page content verified!
+
+--- Running Default Tab External Links ---
+
+--- Running Link Tests for: Default Tab ---
+Testing: הילדים העירוניים
+✅ Passed: הילדים העירוניים
+Testing: והגשת ערעור
+⚠️ Warning: והגשת ערעור opened but URL differs.
+   Expected: ...=8512834&sys=0&sub=2
+   Got:      ...=8512834&sys=0&sub=2
+Testing: הגשת ערר
+⚠️ Warning: הגשת ערר opened but URL differs.
+   Expected: ...=8512834&sys=0&sub=2
+   Got:      ...=8512834&sys=0&sub=2
+Testing: ביטול רישום
+✅ Passed: ביטול רישום
+Testing: נוסח מכתב הרשאה
+⚠️ Warning: נוסח מכתב הרשאה opened but URL differs.
+   Expected: ...Education/Documents/
+   Got:      ...ס ייפוי כח תשפו .pdf
+Testing: על כתובת מגורים
+⚠️ Warning: על כתובת מגורים opened but URL differs.
+   Expected: ...Education/Documents/
+   Got:      ...יר מגורים תשפו  .pdf
+Testing: תצהיר
+⚠️ Warning: תצהיר opened but URL differs.
+   Expected: ...Education/Documents/
+   Got:      ...ם עצמאיים תשפו  .pdf
+Testing: הסכמה והתחייבות
+✅ Passed: הסכמה והתחייבות
+Testing: לגני הילדים
+⚠️ Warning: לגני הילדים opened but URL differs.
+   Expected: ...=8512834&sys=0&sub=5
+   Got:      ...=8512834&sys=0&sub=1
+Testing: נספח
+⚠️ Warning: נספח opened but URL differs.
+   Expected: ...Education/Documents/
+   Got:      ...ts/נספח ד מונגש .pdf
+Testing: יצירת קשר
+✅ Passed: יצירת קשר
+
+--- Navigating to Side Tab: תיק תלמיד ---
+✅ Successfully navigated to: תיק תלמיד
+
+ STARTING LOGIN FLOW via LoginPage
+>>> Clicked 'באמצעות סיסמה' tab inside modal
+>>> ID filled
+>>> Password filled
+>>> Clicked login button normally
+>>> Modal closed successfully
+✅ Login successful! Modal closed.
+
+--- Navigating to Internal Tab: טפסים מקוונים ---
+✅ Clicked 'Online Forms' tab.
+
+--- Running Link Tests for: Online Forms Internal ---
+Testing: יפוי כוח
+✅ Passed: יפוי כוח
+Testing: כתובת מגורים בעיר
+✅ Passed: כתובת מגורים בעיר
+Testing: להורים
+✅ Passed: להורים
+Testing: לימודי חוץ
+✅ Passed: לימודי חוץ
+Testing: נספח
+⚠️ Warning: נספח opened but URL differs.
+   Expected: ...nts/נספח ד תשפו .pdf
+   Got:      ...ts/נספח ד מונגש .pdf
+Testing: בגן פרטי
+✅ Passed: בגן פרטי
+Testing: הסכמה והתחייבות
+✅ Passed: הסכמה והתחייבות
+Testing: ויתור סודיות
+✅ Passed: ויתור סודיות
+Testing: ביטוח
+✅ Passed: ביטוח
+Testing: להוראת קבע באשראי
+⚠️ Warning: להוראת קבע באשראי opened but URL differs.
+   Expected: ...ppbuilder/formrender
+   Got:      ...der/eFormRender.html
+
+--- Navigating to Side Tab: רישום חינוך יסודי ---
+✅ Successfully navigated to: רישום חינוך יסודי
+
+--- Running Link Tests for: רישום חינוך יסודי ---
+Testing: רישום לכיתה
+✅ Passed: רישום לכיתה
+Testing: שיבוץ והגשת וערר
+✅ Passed: שיבוץ והגשת וערר
+Testing: שיבוץ והגשת ערר
+✅ Passed: שיבוץ והגשת ערר
+Testing: ביטול רישום לבתי
+✅ Passed: ביטול רישום לבתי
+Testing: נוסח מכתב הרשאה
+✅ Passed: נוסח מכתב הרשאה
+Testing: כתב הצהרה
+✅ Passed: כתב הצהרה
+Testing: תצהיר ל
+✅ Passed: תצהיר ל
+Testing: בקשה לאישור לימודי
+✅ Passed: בקשה לאישור לימודי
+Testing: יצירת קשר
+✅ Passed: יצירת קשר
+
+--- Navigating to Side Tab: רישום חינוך על יסודי ---
+✅ Successfully navigated to: רישום חינוך על יסודי
+
+--- Running Link Tests for: רישום חינוך על יסודי ---
+Testing: תושבים חדשים
+✅ Passed: תושבים חדשים
+Testing: והגשת ערר
+✅ Passed: והגשת ערר
+Testing: ביטול רישום לבתי
+✅ Passed: ביטול רישום לבתי
+Testing: תצהיר מגורים
+✅ Passed: תצהיר מגורים
+Testing: ויתור סודיות
+✅ Passed: ויתור סודיות
+Testing: תצהיר להורים
+✅ Passed: תצהיר להורים
+Testing: בקשה לאישור
+✅ Passed: בקשה לאישור
+Testing: יצירת קשר
+✅ Passed: יצירת קשר
+
+--- Navigating to Side Tab: חינוך מיוחד ---
+✅ Successfully navigated to: חינוך מיוחד
+
+--- Running Link Tests for: חינוך מיוחד ---
+Testing: בתי ספר
+✅ Passed: בתי ספר
+Testing: גני ילדים
+✅ Passed: גני ילדים
+Testing: ועדת זכאות
+✅ Passed: ועדת זכאות
+Testing: ועדת השגה
+✅ Passed: ועדת השגה
+Testing: יצירת קשר
+✅ Passed: יצירת קשר
+
+--- Navigating to Side Tab: תשלומים ---
+✅ Successfully navigated to: תשלומים
+
+--- Running Link Tests for: תשלומים ---
+Testing: תשלומי חינוך
+✅ Passed: תשלומי חינוך
+Testing: חינוך התראה
+✅ Passed: חינוך התראה
+Testing: תאונות אישיות
+✅ Passed: תאונות אישיות
+Testing: בקשה להחזר
+⚠️ Warning: בקשה להחזר opened but URL differs.
+   Expected: ...l/hito/#/portal/main
+   Got:      ...lezion.muni.il/hito/
+Testing: בקשת הצטרפות
+⚠️ Warning: בקשת הצטרפות opened but URL differs.
+   Expected: ...ppbuilder/formrender
+   Got:      ...der/eFormRender.html
+
+--- Navigating to Side Tab: יצירת קשר ---
+✅ Successfully navigated to: יצירת קשר
+
+--- Running Link Tests for: יצירת קשר ---
+Testing: גני
+✅ Passed: גני
+Testing: חינוך יסודי
+✅ Passed: חינוך יסודי
+Testing: על יסודי
+✅ Passed: על יסודי
+Testing: מיוחד
+✅ Passed: מיוחד
+Testing: ההסעות
+✅ Passed: ההסעות
+>>> Navigated to Enforcement page: https://mypp.rishonlezion.muni.il/enforcement/
+
+--- Starting Fast Link Check (Reports and Fines Tab) ---
+Testing: תשלום דו
+✅ Passed (HREF check): תשלום דו
+Testing: הודעת תשלום קנס
+✅ Passed (HREF check): הודעת תשלום קנס
+Testing: התראה לפני עיקול
+✅ Passed (HREF check): התראה לפני עיקול
+Testing: צו עיקול
+✅ Passed (HREF check): צו עיקול
+Testing: שובר דחיית
+✅ Passed (HREF check): שובר דחיית
+Testing: צפייה בפרטי
+✅ Passed (HREF check): צפייה בפרטי
+Testing: סטטוס ערעור
+✅ Passed (HREF check): סטטוס ערעור
+Testing: בקשה לביטול
+✅ Passed (HREF check): בקשה לביטול
+--- Link check finished ---
+>>> Navigated to Parking page: https://mypp.rishonlezion.muni.il/parking/
+
+--- Starting Fast Link Check (Tab 1 - Fines) ---
+Testing: תשלום דו
+✅ Passed: תשלום דו
+Testing: הודעת תשלום קנס
+✅ Passed: הודעת תשלום קנס
+Testing: התראה לפני עיקול
+✅ Passed: התראה לפני עיקול
+Testing: צו עיקול מטלטלין
+✅ Passed: צו עיקול מטלטלין
+Testing: שובר דחיית ערעור
+✅ Passed: שובר דחיית ערעור
+
+--- Navigating to Tab 3: תווי חניה ---
+>>> Switched to Tab 3.
+
+--- Starting Fast Link Check (Tab 3 - Parking Permits) ---
+Testing: רשימת אזורי חניה
+✅ Passed: רשימת אזורי חניה
+Testing: פירוט חניונים
+✅ Passed: פירוט חניונים
+Testing: חידוש תו חניה
+✅ Passed: חידוש תו חניה
+Testing: בדיקת תוקף
+✅ Passed: בדיקת תוקף
+Testing: השלמת מסמכים
+✅ Passed: השלמת מסמכים
+Testing: הקצאת חניה שמורה
+✅ Passed: הקצאת חניה שמורה
+>>> ✅ Container title 'מידע על רחוב' found. DOM is stable.
+>>> Navigated to Street Page: https://mypp.rishonlezion.muni.il/street-info/
+
+--- Starting street search test: רבי מאיר ---
+>>> ✅ Street suggestion clicked successfully using JS. Initiating AJAX.
+✅ Data returned to table successfully. Found validation text: תפריט
+בדיקות בדיקות
+חזרה לדף הבית
+מידע על רחוב:
+שם...
+
+--- Starting popup expansion test ---
+>>> Plus button clicked using JS.
+✅ Popup loaded successfully. Found validation text: תפריט
+בדיקות בדיקות
+חזרה לדף ה
+Testing: תשלום חשבון מים... ✅ OK (HREF)
+
+--- Navigating to Tab 2: טפסים מקוונים ---
+>>> Switched successfully.
+Testing: נפשות... ✅ OK (HREF)
+Testing: צריכת... ✅ OK (HREF)
+Testing: הפקדת מפתח... ✅ OK (HREF)
+Testing: ביוב... ✅ OK (HREF)
+Testing: בירור חיוב... ⚠️ HREF mismatch, clicking... ✅ OK (Clicked)
+Testing: בתעריף מיוחד... ✅ OK (HREF)
+Testing: הכרה בתעריף... ⚠️ HREF mismatch, clicking... ✅ OK (Clicked)
+Testing: קריאת מונה... ⚠️ HREF mismatch, clicking... ✅ OK (Clicked)
+Testing: איכות מים... ✅ OK (HREF)
+
+--- Navigating to Tab 3: טפסים להורדה ---
+>>> Switched successfully.
+Testing: בקשה לביקור... ✅ OK (HREF)
+Testing: בקשה לקבלת... ✅ OK (HREF)
+Testing: הוראה... ✅ OK (HREF)
+Testing: החלפת... ✅ OK (HREF)
+Testing: סניטרית... ✅ OK (HREF)
+Testing: הנדרשים... ✅ OK (HREF)
+Testing: כשרות... ✅ OK (HREF)
+>>> Navigated to Business page: https://mypp.rishonlezion.muni.il/business/
+
+--- Starting Fast Link Check (Business - Tab 1) ---
+Testing: שלבים ב
+✅ Passed (HREF check): שלבים ב
+Testing: הגשת בקשה
+✅ Passed (HREF check): הגשת בקשה
+
+--- Navigating to Tab 2: דרישות ותנאים, מפרטים והיתרים ---
+>>> Switched to Tab 2.
+
+--- Starting Fast Link Check (Business - Tab 2) ---
+Testing: רישיון לניהול עסק
+✅ Passed (HREF check): רישיון לניהול עסק
+Testing: דרישות ותנאים לקבלת רישיון עסק
+✅ Passed (HREF check): דרישות ותנאים לקבלת רישיון עסק
+Testing: אתר המפרטים האחידים
+✅ Passed (HREF check): אתר המפרטים האחידים
+Testing: בדיקת סטטוס רישוי
+✅ Passed (HREF check): בדיקת סטטוס רישוי
+Testing: דרישות לנגישות עסקים
+✅ Passed (HREF check): דרישות לנגישות עסקים
+
+--- Navigating to Tab 3: טפסים ---
+>>> Switched to Tab 3.
+
+--- Starting Fast Link Check (Business - Tab 3) ---
+Testing: ושולחנות ומתקני
+✅ Passed (HREF check): ושולחנות ומתקני
+Testing: שולחנות וכיסאות
+✅ Passed (HREF check): שולחנות וכיסאות
+Testing: בקשה לרישיון
+✅ Passed (HREF check): בקשה לרישיון
+Testing: בדיקת סטטוס רישוי
+✅ Passed (HREF check): בדיקת סטטוס רישוי
+Testing: אגרת רישוי עסק
+✅ Passed (HREF check): אגרת רישוי עסק
