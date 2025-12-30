@@ -1,0 +1,16 @@
+# Security (מניעת העלאת סיסמאות)
+secrets.json
+
+# Python artifacts
+__pycache__/
+*.pyc
+
+# Environment
+.env
+venv/
+env/
+
+# Testing & Reports
+.pytest_cache/
+allure-results/
+screenshots/
