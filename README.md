@@ -76,10 +76,11 @@ Run the comprehensive suite using Pytest:
 
 Bash
 
-pytest tests/test_full_flow.py --alluredir=./allure-results
+python -m pytest tests/test_full_flow.py --alluredir=./allure-results
+
 View the Report
 Generate and serve the Allure HTML report:
 
 Bash
 
-allure serve ./allure-results
+%AppData%\npm\allure serve ./allure-results
