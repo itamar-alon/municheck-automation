@@ -3,9 +3,12 @@ import sys
 import logging
 import requests
 import time
+import os
+import platform # הוספתי לזיהוי מערכת ההפעלה/שם המחשב
 from datetime import datetime
 from pathlib import Path
 from selenium import webdriver
+from selenium.webdriver.chrome.options import Options
 
 # --- Path Fix ---
 current_file_path = Path(__file__).resolve()
@@ -17,7 +20,6 @@ from tests.utils.secrets_loader import load_secrets
 
 # --- Custom Loki Handler ---
 class LokiHandler(logging.Handler):
-    """ Handler that pushes log records directly to a Grafana Loki API """
     def __init__(self, url, job_name):
         super().__init__()
         self.url = url
@@ -25,23 +27,16 @@ class LokiHandler(logging.Handler):
 
     def emit(self, record):
         try:
-            # Loki דורש חותמת זמן בננו-שניות
             ts = str(int(time.time() * 1e9))
             log_msg = self.format(record)
-            
             payload = {
                 "streams": [{
-                    "stream": {
-                        "job": self.job_name,
-                        "level": record.levelname.lower()
-                    },
+                    "stream": {"job": self.job_name, "level": record.levelname.lower()},
                     "values": [[ts, log_msg]]
                 }]
             }
-            # Timeout קצר כדי שאם השרת למטה, זה לא יעכב את ריצת הטסט
             requests.post(self.url, json=payload, timeout=2)
         except Exception:
-            # התעלמות משגיאות שליחה כדי לא לרסק את הטסט
             pass
 
 # --- Logging Setup ---
@@ -54,26 +49,45 @@ logger.setLevel(logging.INFO)
 
 if not logger.handlers:
     formatter = logging.Formatter("%(asctime)s [%(levelname)s] %(message)s")
-
-    # 1. Handler לקובץ המקומי
     file_handler = logging.FileHandler(log_filename, encoding='utf-8')
-    file_handler.setLevel(logging.INFO)
     file_handler.setFormatter(formatter)
     logger.addHandler(file_handler)
-
-    # 2. Handler לקונסולה
+    
     console_handler = logging.StreamHandler(sys.stdout)
-    console_handler.setLevel(logging.INFO)
     console_handler.setFormatter(formatter)
     logger.addHandler(console_handler)
 
-    # 3. Handler ל-Loki!
     loki_handler = LokiHandler(url="http://10.77.72.45:3100/loki/api/v1/push", job_name="links_automation")
-    loki_handler.setLevel(logging.INFO)
     loki_handler.setFormatter(formatter)
     logger.addHandler(loki_handler)
 
 logger.propagate = False
+
+# --- בדיקת סביבה (שרת מול מקומי) ---
+def is_running_on_server():
+    """ 
+    פונקציה שבודקת האם אנחנו על השרת. 
+    אפשר לבדוק לפי שם המחשב או לפי משתנה סביבה.
+    """
+    # שנה את ה-hostname לשם של השרת שלך או בדוק אם קיים משתנה סביבה ייחודי לשרת
+    server_names = ["SERVER-PROD", "NODE-01"] # רשימת שמות השרתים שלך
+    current_node = platform.node()
+    return current_node in server_names or os.environ.get("RUN_ENV") == "server"
+
+# --- ניקוי תהליכים חכם ---
+@pytest.fixture(scope="session", autouse=True)
+def cleanup_zombies_before_run():
+    """ מנקה שאריות תהליכים בצורה בטוחה לפני תחילת הריצה """
+    if is_running_on_server():
+        logger.info("🧹 Server detected: Cleaning up all Chrome and Driver processes...")
+        os.system("taskkill /f /im chrome.exe /t >nul 2>&1")
+        os.system("taskkill /f /im chromedriver.exe /t >nul 2>&1")
+    else:
+        logger.info("💻 Local PC detected: Cleaning only chromedriver to avoid closing personal tabs...")
+        # במחשב אישי סוגרים רק את הדרייבר, זה בדרך כלל מספיק ולא פוגע בכרום האישי
+        os.system("taskkill /f /im chromedriver.exe /t >nul 2>&1")
+    
+    time.sleep(1)
 
 # --- Fixtures Global ---
 @pytest.fixture(scope="session")
@@ -87,9 +101,28 @@ def secrets():
 @pytest.fixture(scope="function")
 def driver():
     logger.info("🌐 Initializing Chrome WebDriver...")
-    driver = webdriver.Chrome()
-    driver.maximize_window()
-    driver.broken_links_list = [] 
-    yield driver
-    logger.info("🛑 Closing Chrome WebDriver...")
-    driver.quit()
+    
+    chrome_options = Options()
+    chrome_options.add_argument("--no-sandbox")
+    chrome_options.add_argument("--disable-dev-shm-usage")
+    chrome_options.add_argument("--disable-gpu")
+    chrome_options.add_argument("--ignore-certificate-errors")
+    
+    # בשרת מומלץ להריץ ב-Headless כדי למנוע קפיצות של חלונות
+    if is_running_on_server():
+        chrome_options.add_argument("--headless=new")
+
+    try:
+        driver = webdriver.Chrome(options=chrome_options)
+        driver.maximize_window()
+        driver.broken_links_list = [] 
+        
+        yield driver
+        
+    finally:
+        logger.info("🛑 Closing Chrome WebDriver...")
+        if 'driver' in locals():
+            try:
+                driver.quit()
+            except Exception as quit_error:
+                logger.warning(f"⚠️ Failed to close driver: {quit_error}")

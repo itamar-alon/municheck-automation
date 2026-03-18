@@ -5,6 +5,9 @@ import logging
 from datetime import datetime
 from pathlib import Path
 import time
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
 
 # --- Path Fix ---
 current_file_path = Path(__file__).resolve()
@@ -55,6 +58,20 @@ def test_full_system_flow(driver, secrets):
             daycare = DaycarePage(driver, url)
             daycare.open_daycare_page()
             
+            # --- עדכון: טיפול בבאנר עוגיות ---
+            try:
+                logger.info("🍪 Attempting to close cookie banner...")
+                # חיפוש כפתור שמכיל את הטקסט "מאשר הכל" כפי שמופיע בצילום המסך
+                cookie_button = WebDriverWait(driver, 10).until(
+                    EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'מאשר הכל')]"))
+                )
+                cookie_button.click()
+                logger.info("✅ Cookie banner closed successfully.")
+                time.sleep(1) # המתנה קלה להיעלמות האנימציה של הבאנר
+            except Exception as e:
+                logger.warning(f"⚠️ Cookie banner not found or already closed: {e}")
+            # ---------------------------------
+
             title = daycare.get_page_title()
             if "צהרונים" in title or "Daycare" in title:
                  allure.attach(title, name="Page Title", attachment_type=allure.attachment_type.TEXT)
@@ -210,5 +227,3 @@ def test_full_system_flow(driver, secrets):
             logger.info("STATUS: FULL_FLOW_PASSED")
             logger.info("✅ Full Flow - PASSED (All links are OK)")
             allure.dynamic.title("Full Flow - PASSED (All links are OK)")
-            
-        # הערה: אם הייתה שגיאה (Exception), היא כבר טופלה בבלוק ה-except ולכן לא נדפיס כאן כלום
