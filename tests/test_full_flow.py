@@ -25,7 +25,6 @@ from pages.parking_page import ParkingPage
 logger = logging.getLogger("SystemFlowLogger")
 
 def capture_failure(driver, module_name, screenshot_dir):
-    """Helper to capture screenshot and attach to allure on local failure"""
     timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     name = f"failed_{module_name}_{timestamp}.png"
     path = str(screenshot_dir / name)

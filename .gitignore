@@ -8,3 +8,6 @@ allure-results/
 screenshots/
 report.html
 run_history.log
+run_link_checker.bat
+logs/
+.vscode/
