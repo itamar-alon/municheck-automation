@@ -41,8 +41,8 @@ jobs:
           STREET_URL: "https://my.rishonlezion.muni.il/street-info/"
           WATER_URL: "https://my.rishonlezion.muni.il/water/"
           HOME_URL_PART: "muni.il/"
-          ID_NUMBER= ${{ secrets.ID_NUMBER }}
-          PASSWORD= ${{ secrets.PASSWORD }}
+          ID_NUMBER: ${{ secrets.ID_NUMBER }}
+          PASSWORD: ${{ secrets.PASSWORD }}
 
         run: |
           pytest tests/test_full_flow.py
