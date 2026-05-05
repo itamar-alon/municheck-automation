@@ -2,10 +2,10 @@ name: Selenium Automation Run
 
 on:
   push:
-    branches: [ main ]
+    branches: [ master ] 
   schedule:
-    - cron: '0 7 * * *'
-  workflow_dispatch:
+    - cron: '0 4 * * *' 
+  workflow_dispatch: 
 
 jobs:
   automation-job:
@@ -37,6 +37,7 @@ jobs:
         env:
           RUN_ENV: server
           GITHUB_ACTIONS: true
+          
           BUSINESS_URL: "https://my.rishonlezion.muni.il/business/"
           DAYCARE_URL: "https://my.rishonlezion.muni.il/daycare/"
           EDUCATION_URL: "https://my.rishonlezion.muni.il/education/"
@@ -46,6 +47,7 @@ jobs:
           STREET_URL: "https://my.rishonlezion.muni.il/street-info/"
           WATER_URL: "https://my.rishonlezion.muni.il/water/"
           HOME_URL_PART: "muni.il/"
+          
           ID_NUMBER: ${{ secrets.ID_NUMBER }}
           PASSWORD: ${{ secrets.PASSWORD }}
 
