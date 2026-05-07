@@ -1,7 +1,7 @@
 # 🏙️ Municipal Services Automation
 
 [![Python 3.x](https://img.shields.io/badge/Python-3.x-blue.svg)](https://www.python.org/)
-[![Selenium](https://img.shields.io/badge/Framework-Selenium-green.svg)](https://www.selenium.dev/)
+[![Playwright](https://img.shields.io/badge/Framework-Playwright-2EAD33.svg)](https://playwright.dev/)
 [![Pytest](https://img.shields.io/badge/Runner-Pytest-yellow.svg)](https://docs.pytest.org/)
 [![Allure](https://img.shields.io/badge/Reporting-Allure-orange.svg)](https://docs.qameta.io/allure/)
 
