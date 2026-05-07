@@ -28,10 +28,9 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Install Google Chrome
+      - name: Install Playwright Browsers
         run: |
-          sudo apt-get update
-          sudo apt-get install -y google-chrome-stable
+          playwright install --with-deps chromium
 
       - name: Run Automation Tests
         env:
@@ -52,7 +51,7 @@ jobs:
           PASSWORD: ${{ secrets.PASSWORD }}
 
         run: |
-          pytest tests/test_full_flow.py
+          pytest --alluredir=allure-results tests/test_full_flow.py
 
       - name: Upload Artifacts
         if: always()
