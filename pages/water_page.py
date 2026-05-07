@@ -1,8 +1,4 @@
-from selenium.webdriver.common.by import By
-from selenium.common.exceptions import TimeoutException
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
-import time
+from playwright.sync_api import Page, expect
 import os
 from datetime import datetime
 from urllib.parse import unquote
@@ -17,19 +13,17 @@ logger = logging.getLogger("SystemFlowLogger")
 class WaterPage(BasePage):
     """
     Water Interface Page Object.
-    Optimized for SPEED + Clean Structure (like BusinessLicensePage).
+    Refactored for Playwright - Optimized for SPEED + Clean Structure.
     """
 
-    PAGE_TITLE = (By.TAG_NAME, "h1")
+    PAGE_TITLE_SELECTOR = "h1"
     GENERIC_LINK_XPATH = "//*[contains(@role, 'button') or self::a][contains(normalize-space(.), '{}')]"
     
     TAB_BUTTON_NAME_2 = "טפסים מקוונים"
     TAB_BUTTON_NAME_3 = "טפסים להורדה"
 
-
-    TAB_2_LOCATOR = (By.XPATH, f"//button[contains(text(), '{TAB_BUTTON_NAME_2}')]")
-    TAB_3_LOCATOR = (By.XPATH, f"//button[contains(text(), '{TAB_BUTTON_NAME_3}')]")
-
+    TAB_2_SELECTOR = f"//button[contains(text(), '{TAB_BUTTON_NAME_2}')]"
+    TAB_3_SELECTOR = f"//button[contains(text(), '{TAB_BUTTON_NAME_3}')]"
     
     DEFAULT_TAB_LINKS = {
         "תשלום חשבון מים": "https://www.mast.co.il/15657/payment"
@@ -57,16 +51,16 @@ class WaterPage(BasePage):
         "כשרות": "קרמ.pdf"
     }
 
-    def __init__(self, driver, url):
-        super().__init__(driver)
-        self.DEFAULT_TIMEOUT = 3 
+    def __init__(self, page: Page, url: str):
+        super().__init__(page)
+        self.DEFAULT_TIMEOUT = 3000  # ms
         self.WATER_URL = url
 
     def open_water_page(self):
         self.go_to_url(self.WATER_URL)
 
     def get_page_title(self):
-        return self.driver.title
+        return self.page.title()
 
     def _take_error_screenshot(self, link_name):
         try:
@@ -74,31 +68,27 @@ class WaterPage(BasePage):
                 os.makedirs("screenshots")
             timestamp = datetime.now().strftime("%H%M%S") 
             safe_name = "".join([c if c.isalnum() else "_" for c in link_name])
-            self.driver.save_screenshot(f"screenshots/err_{safe_name}_{timestamp}.png")
-        except:
-            pass
-
+            self.page.screenshot(path=f"screenshots/err_{safe_name}_{timestamp}.png")
+        except Exception as e:
+            logger.warning(f"⚠️ Failed to take screenshot: {e}")
 
     def _verify_external_link(self, link_text, expected_url_part):
         logger.info(f"Testing: {link_text}...") 
         
-        locator = (By.XPATH, self.GENERIC_LINK_XPATH.format(link_text))
+        locator = self.page.locator(self.GENERIC_LINK_XPATH.format(link_text))
         
         try:
-            el = WebDriverWait(self.driver, self.DEFAULT_TIMEOUT).until(
-                EC.presence_of_element_located(locator)
-            )
-        except TimeoutException:
+            # Playwright wait for attachment/visibility
+            locator.wait_for(state="attached", timeout=self.DEFAULT_TIMEOUT)
+        except Exception:
             logger.error(f"❌ Not Found: {link_text}")
             self._take_error_screenshot(link_text)
             return
 
- 
-        href = el.get_attribute("href") or ""
-        onclick = el.get_attribute("onclick") or ""
+        href = locator.get_attribute("href") or ""
+        onclick = locator.get_attribute("onclick") or ""
         combined_attributes = unquote(href + " " + onclick)
         clean_expected = unquote(expected_url_part).replace("https://", "").replace("http://", "").strip()
-
 
         if clean_expected not in combined_attributes.replace("https://", "").replace("http://", ""):
             logger.error(f"❌ Link Mismatch on Page for {link_text}")
@@ -107,10 +97,9 @@ class WaterPage(BasePage):
             self._take_error_screenshot(link_name=link_text)
             return
 
-
         if href.startswith("http"):
             try:
-
+                # Using requests for status check (similar to original logic but integrated with BasePage style)
                 response = requests.get(href, timeout=10, allow_redirects=True, verify=False)
                 
                 if response.status_code == 404:
@@ -128,19 +117,20 @@ class WaterPage(BasePage):
 
     def navigate_to_tab_2(self):
         logger.info(f"\n--- Navigating to Tab 2: {self.TAB_BUTTON_NAME_2} ---")
-        self._switch_tab(self.TAB_2_LOCATOR)
+        self._switch_tab(self.TAB_2_SELECTOR)
 
     def navigate_to_tab_3(self):
         logger.info(f"\n--- Navigating to Tab 3: {self.TAB_BUTTON_NAME_3} ---")
-        self._switch_tab(self.TAB_3_LOCATOR)
+        self._switch_tab(self.TAB_3_SELECTOR)
 
-    def _switch_tab(self, locator):
+    def _switch_tab(self, selector):
         try:
-            time.sleep(0.5) 
-            tab = WebDriverWait(self.driver, 5).until(EC.element_to_be_clickable(locator))
-            self.driver.execute_script("arguments[0].click();", tab)
+            tab = self.page.locator(selector)
+            tab.wait_for(state="visible", timeout=5000)
+            # Use force=True to ensure click works even if another element overlaps (common in municipality sites)
+            tab.click(force=True)
             logger.info(f">>> Switched successfully.")
-            time.sleep(1.5)
+            self.page.wait_for_timeout(1500)
         except Exception as e:
             logger.error(f"❌ Failed to switch tab: {e}")
             raise e

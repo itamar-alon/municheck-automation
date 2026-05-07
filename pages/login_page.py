@@ -1,7 +1,4 @@
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait 
-from selenium.webdriver.support import expected_conditions as EC 
-from selenium.common.exceptions import TimeoutException, ElementClickInterceptedException
+from playwright.sync_api import Page, expect
 from .base_page import BasePage
 import time
 import logging
@@ -12,103 +9,100 @@ class LoginPage(BasePage):
     """Class representing the Login page, supporting password login and login within a modal."""
 
     PASSWORD_TAB_TEXT = "באמצעות סיסמה"
-    PASSWORD_TAB = (By.XPATH, f"//button[text()='{PASSWORD_TAB_TEXT}']")
+    # Using text selector for the button
+    PASSWORD_TAB_SELECTOR = f"button:has-text('{PASSWORD_TAB_TEXT}')"
     
-    ID_FIELD = (By.XPATH, "//input[@name='identityNumber' or @name='tz' or @type='text' or @type='number']") 
-    PASSWORD_FIELD = (By.NAME, "password") 
+    # Flexible ID field selector
+    ID_FIELD_SELECTOR = "input[name='identityNumber'], input[name='tz'], input[type='text'], input[type='number']"
+    PASSWORD_FIELD_SELECTOR = "input[name='password']"
     
     FINAL_LOGIN_BUTTON_TEXT = "כניסה"
-    FINAL_LOGIN_BUTTON = (By.XPATH, f"//button[text()='{FINAL_LOGIN_BUTTON_TEXT}']")
+    FINAL_LOGIN_BUTTON_SELECTOR = f"button:has-text('{FINAL_LOGIN_BUTTON_TEXT}')"
     
-    OVERLAY_LOCATOR = (By.CSS_SELECTOR, ".MuiDialog-container[role='presentation']")
+    OVERLAY_SELECTOR = ".MuiDialog-container[role='presentation']"
 
-    def __init__(self, driver, url):
-        super().__init__(driver) 
+    def __init__(self, page: Page, url: str):
+        super().__init__(page) 
         self.LOGIN_URL = url 
 
     def login_with_password(self, user_id: str, user_password: str):
-        
         self.go_to_url(self.LOGIN_URL)
         logger.info(f">>> Navigated to: {self.LOGIN_URL}")
         
+        # Click on password tab
         try:
-            tab_element = self.wait_for_clickable_element(self.PASSWORD_TAB, timeout=10)
-            self.execute_script("arguments[0].click();", tab_element)
-            logger.info(f">>> Clicked on tab '{self.PASSWORD_TAB_TEXT}' (Safe Click).")
-        except Exception:
-            self.click(self.PASSWORD_TAB)
-            logger.info(f">>> Clicked on tab '{self.PASSWORD_TAB_TEXT}' (Standard Click).")
+            tab = self.page.locator(self.PASSWORD_TAB_SELECTOR).first
+            tab.wait_for(state="visible", timeout=10000)
+            tab.click(force=True)
+            logger.info(f">>> Clicked on tab '{self.PASSWORD_TAB_TEXT}'.")
+        except Exception as e:
+            logger.warning(f">>> Failed to click on password tab: {e}")
 
-        WebDriverWait(self.driver, 10).until(
-            EC.element_to_be_clickable(self.ID_FIELD)
-        )
-        
-        self.enter_text(self.ID_FIELD, user_id) 
+        # Fill ID and Password
+        id_field = self.page.locator(self.ID_FIELD_SELECTOR).first
+        id_field.wait_for(state="visible", timeout=10000)
+        id_field.fill(str(user_id))
         logger.info(">>> Entered ID number")
 
-        self.enter_text(self.PASSWORD_FIELD, user_password)
+        password_field = self.page.locator(self.PASSWORD_FIELD_SELECTOR)
+        password_field.fill(str(user_password))
         logger.info(">>> Entered password")
 
+        # Handle Overlay / Submit
         try:
-            self.wait_for_invisibility(self.OVERLAY_LOCATOR, timeout=10)
-        except TimeoutException:
-            logger.warning(">>> Warning: Overlay did not disappear, attempting force click (JS).")
+            overlay = self.page.locator(self.OVERLAY_SELECTOR)
+            if overlay.is_visible():
+                overlay.wait_for(state="hidden", timeout=5000)
+        except Exception:
+            logger.warning(">>> Overlay did not disappear, continuing with force click.")
 
-        login_button_element = self.wait_for_clickable_element(self.FINAL_LOGIN_BUTTON, timeout=5)
-        self.execute_script("arguments[0].click();", login_button_element)
-            
+        login_button = self.page.locator(self.FINAL_LOGIN_BUTTON_SELECTOR).first
+        login_button.click(force=True)
         logger.info(f">>> Clicked on button '{self.FINAL_LOGIN_BUTTON_TEXT}'.")
 
     def wait_for_successful_login(self, home_url_part: str):
-        self.wait_for_url_to_contain(home_url_part, timeout=20)
+        self.wait_for_url_to_contain(home_url_part, timeout=20000)
         logger.info(f">>> Successful navigation to URL containing '{home_url_part}'.")
 
-    def login_with_password_inside_modal(self, id_number: str, password: str):
-
+    def login_with_password_inside_modal(self, id_number: str, password: str, frame=None):
         user_id_str = str(id_number)
         user_password_str = str(password)
+        
+        # Use the provided frame or the default page object
+        target = frame if frame else self.page
 
         try:
-            password_tab = WebDriverWait(self.driver, 5).until(
-                EC.element_to_be_clickable((By.XPATH, "//button[normalize-space(text())='באמצעות סיסמה']"))
-            )
-            password_tab.click()
-            logger.info(">>> Clicked 'באמצעות סיסמה' tab inside modal")
-            time.sleep(1.5) 
-        except TimeoutException:
+            # Using XPATH for strict matching if needed, but Playwright text selectors are usually better
+            password_tab = target.locator("//button[normalize-space(text())='באמצעות סיסמה']").first
+            if password_tab.is_visible(timeout=5000):
+                password_tab.click()
+                logger.info(">>> Clicked 'באמצעות סיסמה' tab inside modal")
+                self.page.wait_for_timeout(1000)
+        except Exception:
             logger.info(">>> 'באמצעות סיסמה' tab not found or already active, continuing...")
 
-        id_input = WebDriverWait(self.driver, 10).until(
-            EC.element_to_be_clickable((By.XPATH, "//input[@name='tz']"))
-        )
-        id_input.clear()
-        id_input.send_keys(user_id_str)
+        id_input = target.locator("//input[@name='tz']").first
+        id_input.fill(user_id_str)
         logger.info(">>> ID filled")
 
-        password_input = WebDriverWait(self.driver, 10).until(
-            EC.element_to_be_clickable((By.XPATH, "//input[@name='password']"))
-        )
-        password_input.clear()
-        password_input.send_keys(user_password_str)
+        password_input = target.locator("//input[@name='password']").first
+        password_input.fill(user_password_str)
         logger.info(">>> Password filled")
 
-        modal_login_button = WebDriverWait(self.driver, 10).until(
-            EC.element_to_be_clickable((
-                By.XPATH,
-                "//div[contains(@class, 'MuiDialog-container') and contains(@role, 'presentation')]//button[text()='כניסה' and @type='button']"
-            ))
-        )
-        try:
-            modal_login_button.click()
-            logger.info(">>> Clicked login button normally")
-        except ElementClickInterceptedException:
-            logger.warning(">>> Click intercepted, retrying via JS")
-            self.execute_script("arguments[0].click();", modal_login_button)
+        # Specific login button inside the modal
+        # If inside a frame, the dialog container might be different or not present in the same way
+        if frame:
+             modal_login_button = target.locator("//button[text()='כניסה' and @type='button']").first
+        else:
+             modal_login_button = target.locator("//div[contains(@class, 'MuiDialog-container') and contains(@role, 'presentation')]//button[text()='כניסה' and @type='button']").first
+             
+        modal_login_button.click(force=True)
+        logger.info(">>> Clicked login button in modal")
 
         try:
-            WebDriverWait(self.driver, 10).until_not(
-                EC.presence_of_element_located((By.XPATH, "//div[contains(@class, 'MuiDialog-container') and contains(@role, 'presentation')]"))
-            )
-            logger.info(">>> Modal closed successfully")
-        except TimeoutException:
+            if not frame:
+                modal = target.locator("//div[contains(@class, 'MuiDialog-container') and contains(@role, 'presentation')]")
+                modal.wait_for(state="hidden", timeout=10000)
+                logger.info(">>> Modal closed successfully")
+        except Exception:
             logger.warning(">>> Modal did NOT close – continue anyway")

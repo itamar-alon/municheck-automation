@@ -1,23 +1,20 @@
-from selenium.webdriver.common.by import By
-from selenium.common.exceptions import TimeoutException
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
-import time
+import logging
 import os
+import time
 from datetime import datetime
 from urllib.parse import unquote
+from playwright.sync_api import Page, expect
 from .base_page import BasePage
-import logging
 
 logger = logging.getLogger("SystemFlowLogger")
 
 class DaycarePage(BasePage):
     """
     Daycare page class.
-    OPTIMIZED: Includes Fast HREF Checking (Smart Verify).
+    OPTIMIZED: Includes Fast HREF Checking (Smart Verify) using Playwright.
     """
 
-    PAGE_TITLE = (By.TAG_NAME, "h1")
+    PAGE_TITLE = "h1"
     GENERIC_LINK_XPATH = "//*[contains(@role, 'button') or self::a][contains(normalize-space(.), '{}')]"
 
     TAB_BUTTON_NAME = "מעונות יום"
@@ -34,9 +31,9 @@ class DaycarePage(BasePage):
         "רישום מעון חרצית": "CategoryID=3506"
     }
 
-    def __init__(self, driver, url):
-        super().__init__(driver)
-        self.DEFAULT_TIMEOUT = 3 
+    def __init__(self, page: Page, url: str):
+        super().__init__(page)
+        self.DEFAULT_TIMEOUT = 10000  # 10 seconds in ms
         self.DAYCARE_URL = url
 
     def open_daycare_page(self):
@@ -44,8 +41,7 @@ class DaycarePage(BasePage):
         logger.info(f">>> Navigated to Daycare page: {self.DAYCARE_URL}")
 
     def get_page_title(self):
-        title_element = self.get_element(self.PAGE_TITLE)
-        return title_element.text
+        return self.get_element(self.PAGE_TITLE).inner_text()
     
     def _take_error_screenshot(self, link_name):
         try:
@@ -53,28 +49,26 @@ class DaycarePage(BasePage):
                 os.makedirs("screenshots")
             timestamp = datetime.now().strftime("%H%M%S")
             safe_name = "".join([c if c.isalnum() else "_" for c in link_name])
-            self.driver.save_screenshot(f"screenshots/err_daycare_{safe_name}_{timestamp}.png")
-        except:
-            pass
+            filename = f"screenshots/err_daycare_{safe_name}_{timestamp}.png"
+            self.page.screenshot(path=filename)
+            logger.info(f"📸 Screenshot saved: {filename}")
+        except Exception as e:
+            logger.warning(f"⚠️ Failed to save screenshot: {e}")
 
     def _verify_external_link(self, link_text, expected_url_part):
         logger.info(f"Testing: {link_text}...") 
         
-        locator = (By.XPATH, self.GENERIC_LINK_XPATH.format(link_text))
+        locator_str = self.GENERIC_LINK_XPATH.format(link_text)
         
-        if "חרצית" in link_text:
-             pass 
-
         try:
-            el = WebDriverWait(self.driver, self.DEFAULT_TIMEOUT).until(
-                EC.presence_of_element_located(locator)
-            )
-        except TimeoutException:
+            # Check if element exists and is visible using BasePage method
+            locator = self.get_element(locator_str, timeout=self.DEFAULT_TIMEOUT)
+        except Exception:
             logger.error(f"❌ Not Found: {link_text}")
             self._take_error_screenshot(link_text)
             return
 
-        href = el.get_attribute("href")
+        href = locator.get_attribute("href")
         
         clean_href = unquote(href).replace("https://", "").replace("http://", "") if href else ""
         clean_expected = unquote(expected_url_part).replace("https://", "").replace("http://", "")
@@ -83,21 +77,18 @@ class DaycarePage(BasePage):
             logger.info(f"✅ OK (HREF): {link_text}")
             return 
 
-
         logger.warning(f"⚠️ Mismatch for '{link_text}' ('{clean_expected}' not in '{clean_href[:20]}...'), clicking...")
         
-        orig_window = self.driver.current_window_handle
         try:
-            self.driver.execute_script("arguments[0].target='_blank'; arguments[0].click();", el)
+            with self.page.expect_popup() as popup_info:
+                # Some sites might need specific attributes or script-based clicks if they don't use standard hrefs
+                locator.scroll_into_view_if_needed()
+                locator.click()
             
-            WebDriverWait(self.driver, 10).until(EC.number_of_windows_to_be(2))
-            new_win = [w for w in self.driver.window_handles if w != orig_window][0]
-            self.driver.switch_to.window(new_win)
+            new_page = popup_info.value
+            new_page.wait_for_load_state()
             
-            current_url = unquote(self.driver.current_url)
-            self.driver.close()
-            self.driver.switch_to.window(orig_window)
-
+            current_url = unquote(new_page.url)
             clean_current = current_url.replace("https://", "").replace("http://", "")
             
             if clean_expected in clean_current:
@@ -107,11 +98,12 @@ class DaycarePage(BasePage):
                 logger.error(f"   Exp: ...{clean_expected[-30:]}")
                 logger.error(f"   Got: ...{clean_current[-30:]}")
                 self._take_error_screenshot(link_text)
+            
+            new_page.close()
 
         except Exception as e:
             logger.error(f"❌ Click Failed for {link_text}: {e}")
-            self.driver.switch_to.window(orig_window)
-
+            self._take_error_screenshot(link_name=link_text)
 
     def run_tab_1_external_link_tests(self):
         logger.info("\n--- Starting Fast Link Check (Daycare - Tab 1) ---")
@@ -123,7 +115,7 @@ class DaycarePage(BasePage):
         target_url = self.DAYCARE_URL + self.TAB_2_URL_PART
         self.go_to_url(target_url)
         logger.info(f"\n>>> Navigating to Tab 2: {target_url}")
-        time.sleep(2) 
+        self.page.wait_for_load_state("networkidle")
 
     def run_tab_2_external_link_tests(self):
         logger.info(f"\n--- Starting Fast Link Check (Daycare - Tab 2) ---")

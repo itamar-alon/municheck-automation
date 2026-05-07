@@ -1,26 +1,23 @@
-from selenium.webdriver.common.by import By
-from selenium.common.exceptions import TimeoutException
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
-import time
+import logging
 import os
+import time
 from datetime import datetime
 from urllib.parse import unquote
+from playwright.sync_api import Page, expect
 from .base_page import BasePage
-import logging
 
 logger = logging.getLogger("SystemFlowLogger")
 
 class ParkingPage(BasePage):
     """
     Parking Page Object.
-    Optimized for FAST link checking + Error Screenshots.
+    Optimized for FAST link checking + Error Screenshots using Playwright.
     Skips Login and Personal Info Tab as requested.
     """
 
-    PAGE_TITLE = (By.TAG_NAME, "h1")
+    PAGE_TITLE = "h1"
     
-    TAB_3_LOCATOR = (By.XPATH, "//button[normalize-space()='תווי חניה']")
+    TAB_3_LOCATOR = "//button[normalize-space()='תווי חניה']"
     
     GENERIC_LINK_XPATH = "//*[contains(@role, 'button') or self::a][contains(normalize-space(.), '{}')]"
 
@@ -42,9 +39,9 @@ class ParkingPage(BasePage):
         "הקצאת חניה שמורה": "https://www.rishonlezion.muni.il/Residents/Transportation/Parking/Pages/DisabledParking.aspx"
     }
 
-    def __init__(self, driver, url):
-        super().__init__(driver)
-        self.DEFAULT_TIMEOUT = 10
+    def __init__(self, page: Page, url: str):
+        super().__init__(page)
+        self.DEFAULT_TIMEOUT = 10000  # 10 seconds in ms
         self.PARKING_URL = url
 
     def open_parking_page(self):
@@ -52,8 +49,7 @@ class ParkingPage(BasePage):
         logger.info(f">>> Navigated to Parking page: {self.PARKING_URL}")
 
     def get_page_title(self):
-        title_element = self.get_element(self.PAGE_TITLE)
-        return title_element.text
+        return self.get_element(self.PAGE_TITLE).inner_text()
 
     def _take_error_screenshot(self, link_name):
         try:
@@ -64,7 +60,7 @@ class ParkingPage(BasePage):
             safe_name = "".join([c if c.isalnum() else "_" for c in link_name])
             filename = f"screenshots/error_parking_{safe_name}_{timestamp}.png"
             
-            self.driver.save_screenshot(filename)
+            self.page.screenshot(path=filename)
             logger.info(f"📸 Screenshot saved: {filename}")
         except Exception as e:
             logger.warning(f"⚠️ Failed to save screenshot: {e}")
@@ -72,19 +68,16 @@ class ParkingPage(BasePage):
     def _verify_external_link(self, link_text, expected_url_part):
         logger.info(f"Testing: {link_text}")
         
-        locator = (By.XPATH, self.GENERIC_LINK_XPATH.format(link_text))
+        locator_str = self.GENERIC_LINK_XPATH.format(link_text)
         
         try:
-            el = WebDriverWait(self.driver, self.DEFAULT_TIMEOUT).until(
-                EC.presence_of_element_located(locator)
-            )
-        except TimeoutException:
+            locator = self.get_element(locator_str, timeout=self.DEFAULT_TIMEOUT)
+        except Exception:
             logger.error(f"❌ Link error: '{link_text}' (Element not found)")
             self._take_error_screenshot(link_text)
             return
 
-        href = el.get_attribute("href")
-        orig_window = self.driver.current_window_handle
+        href = locator.get_attribute("href")
 
         try:
             if href and "http" in href:
@@ -92,19 +85,17 @@ class ParkingPage(BasePage):
                 decoded_expected = unquote(expected_url_part)
                 
                 if decoded_expected in decoded_href:
-                    logger.info(f"✅ Passed: {link_text}")
+                    logger.info(f"✅ Passed (HREF check): {link_text}")
                     return 
 
-            self.driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", el)
-            time.sleep(0.5)
-            self.driver.execute_script("arguments[0].click();", el)
-
-            WebDriverWait(self.driver, 10).until(EC.number_of_windows_to_be(2))
+            with self.page.expect_popup() as popup_info:
+                locator.scroll_into_view_if_needed()
+                locator.click()
             
-            new_win = [w for w in self.driver.window_handles if w != orig_window][0]
-            self.driver.switch_to.window(new_win)
+            new_page = popup_info.value
+            new_page.wait_for_load_state()
 
-            current_url = unquote(self.driver.current_url)
+            current_url = unquote(new_page.url)
             expected_decoded = unquote(expected_url_part)
 
             if expected_decoded in current_url:
@@ -112,15 +103,11 @@ class ParkingPage(BasePage):
             else:
                 logger.warning(f"⚠️ Warning: {link_text} opened but URL differs.\n   Expected: ...{expected_decoded[-20:]}\n   Got:      ...{current_url[-20:]}")
 
-            self.driver.close()
+            new_page.close()
 
         except Exception as e:
             logger.error(f"❌ Link error: '{link_text}' (Failed to open/verify). Error: {e}")
             self._take_error_screenshot(link_text)
-        
-        finally:
-            try: self.driver.switch_to.window(orig_window)
-            except: pass
 
 
     def run_tab_1_external_link_tests(self):
@@ -131,12 +118,11 @@ class ParkingPage(BasePage):
     def navigate_to_tab_3(self):
         logger.info("\n--- Navigating to Tab 3: תווי חניה ---")
         try:
-            tab = WebDriverWait(self.driver, 10).until(EC.element_to_be_clickable(self.TAB_3_LOCATOR))
-            self.driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", tab)
-            time.sleep(0.5)
-            self.driver.execute_script("arguments[0].click();", tab)
+            tab = self.get_element(self.TAB_3_LOCATOR, timeout=self.DEFAULT_TIMEOUT)
+            tab.scroll_into_view_if_needed()
+            tab.click()
             logger.info(">>> Switched to Tab 3.")
-            time.sleep(2)
+            self.page.wait_for_load_state("networkidle")
         except Exception as e:
             logger.error(f"❌ Failed to switch to Tab 3: {e}")
             self._take_error_screenshot("tab_switch_fail")

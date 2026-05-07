@@ -1,5 +1,3 @@
-from selenium import webdriver
-from selenium.common.exceptions import TimeoutException
 from pathlib import Path
 import logging
 import pytest
@@ -16,7 +14,7 @@ from pages.login_page import LoginPage
 
 logger = logging.getLogger("SystemFlowLogger")
 
-def test_login_flow(driver, secrets):
+def test_login_flow(page, secrets):
     if not secrets:
         logger.error("❌ Error loading secrets.")
         pytest.fail("Error loading secrets.")
@@ -28,16 +26,16 @@ def test_login_flow(driver, secrets):
     HOME_URL_PART = secrets.get('home_url_part')
 
     if not all([USER_ID, USER_PASSWORD, LOGIN_URL, HOME_URL_PART]):
-        logger.error("❌ Error: Missing login configuration in secrets.json")
-        pytest.fail("Missing login configuration in secrets.json")
-        
+        logger.error("❌ Error: Missing login configuration in .env")
+        pytest.fail("Missing login configuration in .env")
+
     SCREENSHOT_DIR = project_root / "screenshots"
     SCREENSHOT_DIR.mkdir(exist_ok=True)
 
     try:
         logger.info("🚀 Starting Login Test")
-        
-        login_page = LoginPage(driver, LOGIN_URL)
+
+        login_page = LoginPage(page, LOGIN_URL)
 
         login_page.login_with_password(USER_ID, USER_PASSWORD)
 
@@ -45,35 +43,17 @@ def test_login_flow(driver, secrets):
 
         logger.info("✅ Login confirmed successfully.")
 
-    except TimeoutException as e:
-        timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-        screenshot_name = f"login_timeout_failure_{timestamp}.png"
-        screenshot_path = str(SCREENSHOT_DIR / screenshot_name)
-        
-        if driver:
-            driver.save_screenshot(screenshot_path)
-        
-        current_url = driver.current_url if driver else "N/A"
-        logger.error(f"\n❌ LOGIN TEST FAILED (Timeout)")
-        logger.error(f"Current URL: {current_url}")
-        logger.error(f"📸 Screenshot saved to: {screenshot_path}")
-        
-        if driver:
-            time.sleep(5)
-        raise e
-        
     except Exception as e:
         timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-        screenshot_name = f"login_critical_failure_{timestamp}.png"
+        screenshot_name = f"login_failure_{timestamp}.png"
         screenshot_path = str(SCREENSHOT_DIR / screenshot_name)
-        
-        if driver:
-            driver.save_screenshot(screenshot_path)
-            
-        logger.error(f"\n❌ LOGIN TEST FAILED (Critical)")
+
+        try:
+            page.screenshot(path=screenshot_path)
+        except:
+            pass
+
+        logger.error(f"\n❌ LOGIN TEST FAILED")
         logger.error(f"Reason: {e}")
         logger.error(f"📸 Screenshot saved to: {screenshot_path}")
-        
-        if driver:
-            time.sleep(5)
         raise e

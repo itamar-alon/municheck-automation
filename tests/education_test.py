@@ -1,11 +1,11 @@
 from pathlib import Path
 import sys
 from sys import path
-from selenium import webdriver
 import time
 from datetime import datetime
 import logging
 import pytest
+from playwright.sync_api import Page
 
 current_file_path = Path(__file__).resolve()
 project_root = current_file_path.parent.parent
@@ -17,7 +17,7 @@ from pages.education_page import EducationPage
 
 logger = logging.getLogger("SystemFlowLogger")
 
-def test_education_flow(driver, secrets):
+def test_education_flow(page: Page, secrets):
     if not secrets:
         logger.error("❌ Error loading secrets.")
         pytest.fail("Error loading secrets.")
@@ -28,8 +28,8 @@ def test_education_flow(driver, secrets):
     STUDENT_PASS = user_data.get('password')
 
     if not all([EDUCATION_URL, STUDENT_ID, STUDENT_PASS]):
-        logger.error("❌ Error: Missing 'education_url', 'id_number', or 'password' in secrets.")
-        pytest.fail("Missing critical configuration in secrets.json")
+        logger.error("❌ Error: Missing 'EDUCATION_URL', 'ID_NUMBER', or 'PASSWORD' in .env")
+        pytest.fail("Missing critical configuration in .env")
 
     SCREENSHOT_DIR = project_root / "screenshots"
     SCREENSHOT_DIR.mkdir(exist_ok=True)
@@ -37,7 +37,7 @@ def test_education_flow(driver, secrets):
     try:
         logger.info("🚀 Starting Education Interface Test")
         
-        education_page = EducationPage(driver, EDUCATION_URL)
+        education_page = EducationPage(page, EDUCATION_URL)
         education_page.open_education_page()
         
         education_page.verify_education_content()
@@ -86,13 +86,13 @@ def test_education_flow(driver, secrets):
         screenshot_name = f"critical_failure_{timestamp}.png"
         screenshot_path = str(SCREENSHOT_DIR / screenshot_name)
         
-        if driver:
-            driver.save_screenshot(screenshot_path)
+        try:
+            page.screenshot(path=screenshot_path)
+        except:
+            pass
         
         logger.error(f"\n❌ CRITICAL FAILURE LOGGED")
         logger.error(f"Reason: {e}")
         logger.error(f"📸 Screenshot saved to: {screenshot_path}")
         
-        if driver:
-            time.sleep(5)
         raise e

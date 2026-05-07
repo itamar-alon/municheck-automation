@@ -1,36 +1,36 @@
 import requests
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
-from selenium.common.exceptions import TimeoutException, NoSuchElementException
-from selenium.webdriver.common.by import By
 import logging
+from playwright.sync_api import Page, Locator, expect
 
 logger = logging.getLogger("SystemFlowLogger")
 
 class BasePage:
+    """
+    Base class for all Page Objects using Playwright.
+    """
     
-    DEFAULT_WAIT_TIME = 10
+    DEFAULT_WAIT_TIME = 10000  # 10 seconds in milliseconds
     
-    def __init__(self, driver=None):
-        self.driver = driver
-        if driver:
-            self.wait = WebDriverWait(driver, self.DEFAULT_WAIT_TIME)
-
-    def _get_wait(self, timeout):
-        return WebDriverWait(self.driver, timeout if timeout is not None else self.DEFAULT_WAIT_TIME)
+    def __init__(self, page: Page):
+        self.page = page
 
     def dismiss_cookie_banner(self):
+        """
+        Attempts to find and click common cookie consent buttons.
+        """
         try:
-            cookie_btn = self.driver.find_element(By.XPATH, "//button[contains(text(), 'מאשר') or contains(text(), 'אישור') or contains(text(), 'הבנתי')]")
-            cookie_btn.click()
-            logger.info("🍪 Cookie banner closed successfully.")
-        except NoSuchElementException:
+            cookie_btn = self.page.locator("//button[contains(text(), 'מאשר') or contains(text(), 'אישור') or contains(text(), 'הבנתי')]")
+            if cookie_btn.is_visible(timeout=3000):
+                cookie_btn.click()
+                logger.info("🍪 Cookie banner closed successfully.")
+        except Exception:
+            # We ignore failures here as cookie banners might not be present
             pass
-        except Exception as e:
-            logger.debug(f"⚠️ Cookie banner present but could not be clicked (ignoring).")
 
     def validate_link_status(self, url):
-        
+        """
+        Performs an HTTP request to check if a link is alive.
+        """
         headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
         }
@@ -52,38 +52,41 @@ class BasePage:
             return False, str(e)
 
     def _record_broken_link(self, url, reason):
-        if hasattr(self.driver, 'broken_links_list'):
-            entry = f"URL: {url} | Reason/Status: {reason}"
-            if entry not in self.driver.broken_links_list:
-                self.driver.broken_links_list.append(entry)
-                logger.warning(f"⚠️ Broken link recorded: {entry}")
+        """
+        Records a broken link in a list attached to the page object for reporting.
+        """
+        if not hasattr(self.page, 'broken_links_list'):
+            self.page.broken_links_list = []
+            
+        entry = f"URL: {url} | Reason/Status: {reason}"
+        if entry not in self.page.broken_links_list:
+            self.page.broken_links_list.append(entry)
+            logger.warning(f"⚠️ Broken link recorded: {entry}")
 
     def go_to_url(self, url):
         logger.info(f"Navigating to URL: {url}")
-        self.driver.get(url)
+        self.page.goto(url)
 
-    def execute_script(self, script, element=None):
-        if element:
-            return self.driver.execute_script(script, element)
-        return self.driver.execute_script(script)
+    def execute_script(self, script, arg=None):
+        return self.page.evaluate(script, arg)
 
-    def get_element(self, by_locator, timeout=None):
-        try:
-            return self._get_wait(timeout).until(EC.visibility_of_element_located(by_locator))
-        except TimeoutException as e:
-            logger.error(f"❌ Element not visible within timeout: {by_locator}")
-            raise e
+    def get_element(self, selector, timeout=None):
+        """
+        Returns a locator for the given selector and waits for it to be visible.
+        """
+        locator = self.page.locator(selector)
+        locator.wait_for(state="visible", timeout=timeout or self.DEFAULT_WAIT_TIME)
+        return locator
 
-    def wait_for_clickable_element(self, by_locator, timeout=None):
-        try:
-            return self._get_wait(timeout).until(EC.element_to_be_clickable(by_locator))
-        except TimeoutException as e:
-            logger.error(f"❌ Element not clickable within timeout: {by_locator}")
-            raise e
+    def wait_for_clickable_element(self, selector, timeout=None):
+        """
+        Waits for an element to be visible and returns the locator. 
+        Playwright handles 'clickability' automatically during click().
+        """
+        locator = self.page.locator(selector)
+        locator.wait_for(state="visible", timeout=timeout or self.DEFAULT_WAIT_TIME)
+        return locator
 
     def wait_for_url_to_contain(self, url_part, timeout=None):
-        try:
-            self._get_wait(timeout).until(EC.url_contains(url_part))
-        except TimeoutException as e:
-            logger.error(f"❌ URL did not contain '{url_part}' within timeout.")
-            raise e
+        import re
+        self.page.wait_for_url(re.compile(f".*{re.escape(url_part)}.*"), timeout=timeout or self.DEFAULT_WAIT_TIME)

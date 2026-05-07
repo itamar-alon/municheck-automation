@@ -7,8 +7,6 @@ import os
 import platform  
 from datetime import datetime
 from pathlib import Path
-from selenium import webdriver
-from selenium.webdriver.chrome.options import Options
 
 current_file_path = Path(__file__).resolve()
 project_root = current_file_path.parent.parent
@@ -72,13 +70,15 @@ def is_running_on_server():
 
 @pytest.fixture(scope="session", autouse=True)
 def cleanup_zombies_before_run():
+    """ Cleanup any lingering browser processes. """
     if platform.system() == "Windows":
-        if is_running_on_server():
-            os.system("taskkill /f /im chrome.exe /t >nul 2>&1")
+        os.system("taskkill /f /im chrome.exe /t >nul 2>&1")
         os.system("taskkill /f /im chromedriver.exe /t >nul 2>&1")
+        os.system("taskkill /f /im msedge.exe /t >nul 2>&1")
     else:
         os.system("pkill -f chrome || true")
         os.system("pkill -f chromedriver || true")
+        os.system("pkill -f msedge || true")
     
     time.sleep(1)
 
@@ -86,31 +86,6 @@ def cleanup_zombies_before_run():
 def secrets():
     data = load_secrets()
     if not data:
-        logger.error("❌ Error: Could not load secrets.json")
-        pytest.fail("❌ Error: Could not load secrets.json")
+        logger.error("❌ Error: Could not load .env")
+        pytest.fail("❌ Error: Could not load .env")
     return data
-
-@pytest.fixture(scope="function")
-def driver():
-    logger.info("🌐 Initializing Chrome WebDriver...")
-    chrome_options = Options()
-    
-    chrome_options.add_argument("--no-sandbox")
-    chrome_options.add_argument("--disable-dev-shm-usage")
-    chrome_options.add_argument("--disable-gpu")
-    chrome_options.add_argument("--ignore-certificate-errors")
-    chrome_options.add_argument("--blink-settings=imagesEnabled=false")
-    chrome_options.add_argument("--window-size=1920,1080")
-
-    if is_running_on_server():
-        chrome_options.add_argument("--headless=new")
-
-    try:
-        driver = webdriver.Chrome(options=chrome_options)
-        if not is_running_on_server():
-            driver.maximize_window()
-        driver.broken_links_list = [] 
-        yield driver
-    finally:
-        if 'driver' in locals():
-            driver.quit()

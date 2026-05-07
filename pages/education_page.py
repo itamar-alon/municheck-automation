@@ -1,29 +1,26 @@
-from selenium.webdriver.common.by import By
-from selenium.common.exceptions import TimeoutException
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
+import logging
 import time
+import os
+from datetime import datetime
 from urllib.parse import unquote
-import os 
-from datetime import datetime 
+from playwright.sync_api import Page, expect
 from .base_page import BasePage
 from .login_page import LoginPage 
-import logging
 
 logger = logging.getLogger("SystemFlowLogger")
 
 class EducationPage(BasePage):
     """
     Education Page Object.
-    Optimized for FAST link checking + Error Screenshots.
+    Optimized for FAST link checking + Error Screenshots using Playwright.
     """
 
-    PAGE_TITLE_LOCATOR = (By.XPATH, "//h2[contains(normalize-space(.), 'רישום חינוך גני ילדים')]")
-    CONTENT_VALIDATOR = (By.XPATH, "//*[contains(normalize-space(.), 'הנרטיב')]")
-    PRIVACY_GUARD_AUTH_BUTTON = (By.XPATH, "//button[contains(text(), 'המשך') or contains(text(), 'כניסה') or contains(text(), 'התחבר') or contains(text(), 'הזדהות')]")
-    PRIVACY_GUARD_POPUP = (By.CSS_SELECTOR, ".MuiDialog-container") 
-    LOGIN_IFRAME_TAG = (By.TAG_NAME, "iframe")
-    INTERNAL_TAB_ONLINE_FORMS = (By.XPATH, "//*[contains(text(), 'טפסים מקוונים')]")
+    PAGE_TITLE_LOCATOR = "xpath=//h2[contains(normalize-space(.), 'רישום חינוך גני ילדים')]"
+    CONTENT_VALIDATOR = "xpath=//p[contains(normalize-space(.), 'הנרטיב')] | //div[contains(normalize-space(.), 'הנרטיב')]"
+    PRIVACY_GUARD_AUTH_BUTTON = "xpath=//button[contains(text(), 'המשך') or contains(text(), 'כניסה') or contains(text(), 'התחבר') or contains(text(), 'הזדהות')]"
+    PRIVACY_GUARD_POPUP = ".MuiDialog-container" 
+    LOGIN_IFRAME_TAG = "iframe"
+    INTERNAL_TAB_ONLINE_FORMS = "xpath=//*[contains(text(), 'טפסים מקוונים')]"
 
     
     DEFAULT_TAB_LINKS = {
@@ -100,9 +97,9 @@ class EducationPage(BasePage):
         "ההסעות": "https://www.rishonlezion.muni.il/Lists/List21/CustomDispForm.aspx?ID=85" 
     }
 
-    def __init__(self, driver, url):
-        super().__init__(driver)
-        self.DEFAULT_TIMEOUT = 12
+    def __init__(self, page: Page, url: str):
+        super().__init__(page)
+        self.DEFAULT_TIMEOUT = 12000  # ms
         self.EDUCATION_URL = url
 
     def open_education_page(self):
@@ -110,18 +107,14 @@ class EducationPage(BasePage):
         logger.info(f">>> Navigated to Education Interface: {self.EDUCATION_URL}")
 
     def get_page_title(self):
-        element = WebDriverWait(self.driver, self.DEFAULT_TIMEOUT).until(
-            EC.presence_of_element_located(self.PAGE_TITLE_LOCATOR)
-        )
-        return element.text
-
+        return self.get_element(self.PAGE_TITLE_LOCATOR).inner_text()
 
     def verify_education_content(self):
         logger.info("\n--- Starting Content Validation ---")
         try:
-            WebDriverWait(self.driver, 10).until(EC.presence_of_element_located(self.CONTENT_VALIDATOR))
+            self.get_element(self.CONTENT_VALIDATOR, timeout=10000)
             logger.info("✅ Education page content verified!")
-        except TimeoutException:
+        except Exception:
             raise Exception("❌ Validation text 'הנרטיב' not found.")
 
     def run_default_tab_external_link_tests(self):
@@ -138,75 +131,65 @@ class EducationPage(BasePage):
 
     def navigate_to_side_tab(self, tab_name):
         logger.info(f"\n--- Navigating to Side Tab: {tab_name} ---")
-        self.driver.switch_to.default_content()
-
+        # In Playwright we don't need to switch to default content manually if we are already there
+        # But we ensure we are out of any iframes.
+        
         if tab_name == "תיק תלמיד":
-            self.driver.refresh()
-            time.sleep(4) 
+            self.page.reload()
+            self.page.wait_for_load_state("networkidle")
 
         xpath = f"//*[contains(text(), '{tab_name}')]"
-        attempts = 0
-        while attempts < 3:
-            try:
-                elements = self.driver.find_elements(By.XPATH, xpath)
-                target_element = None
-                for el in elements:
-                    if el.is_displayed(): target_element = el; break
-                if not target_element and elements: target_element = elements[-1]
-                
-                if target_element:
-                    self.driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", target_element)
-                    time.sleep(0.5)
-                    try: target_element.click()
-                    except: self.driver.execute_script("arguments[0].click();", target_element)
-                    logger.info(f"✅ Successfully navigated to: {tab_name}")
-                    time.sleep(2)
-                    return
-                attempts += 1; time.sleep(1)
-            except: attempts += 1; time.sleep(1)
-        raise Exception(f"❌ Failed to navigate to {tab_name}")
+        try:
+            target_element = self.page.locator(xpath).first
+            target_element.wait_for(state="visible", timeout=10000)
+            target_element.scroll_into_view_if_needed()
+            target_element.click()
+            logger.info(f"✅ Successfully navigated to: {tab_name}")
+            self.page.wait_for_load_state("domcontentloaded")
+            return
+        except Exception as e:
+            raise Exception(f"❌ Failed to navigate to {tab_name}: {e}")
 
     def perform_student_login(self, user_id, user_password):
         logger.info(f"\n STARTING LOGIN FLOW via LoginPage")
         try:
-            auth_btn = WebDriverWait(self.driver, 10).until(EC.element_to_be_clickable(self.PRIVACY_GUARD_AUTH_BUTTON))
-            auth_btn.click()
+            auth_btn = self.page.locator(self.PRIVACY_GUARD_AUTH_BUTTON)
+            if auth_btn.is_visible(timeout=5000):
+                auth_btn.click()
         except: pass
         
-        time.sleep(2)
-        iframes = self.driver.find_elements(*self.LOGIN_IFRAME_TAG)
-        if iframes: self.driver.switch_to.frame(iframes[0])
+        self.page.wait_for_timeout(2000)
+        
+        # Handling iframes in Playwright
+        iframe_element = self.page.locator(self.LOGIN_IFRAME_TAG).first
+        if iframe_element.count() > 0:
+            frame = self.page.frame_locator(self.LOGIN_IFRAME_TAG).first
+            try:
+                # We need a LoginPage that can work with FrameLocator or we pass the Frame object
+                # For simplicity, let's assume we can interact with it via page.frame_locator
+                login_page = LoginPage(self.page, self.EDUCATION_URL)
+                # We'll need to update LoginPage to handle being inside a frame or pass the frame
+                login_page.login_with_password_inside_modal(user_id, user_password, frame=frame)
+            except Exception as e:
+                raise e
         
         try:
-            login_page = LoginPage(self.driver, self.EDUCATION_URL)
-            login_page.login_with_password_inside_modal(user_id, user_password)
-        except Exception as e:
-            self.driver.switch_to.default_content(); raise e
-        
-        self.driver.switch_to.default_content()
-        try:
-            WebDriverWait(self.driver, 15).until(EC.invisibility_of_element_located(self.PRIVACY_GUARD_POPUP))
+            popup = self.page.locator(self.PRIVACY_GUARD_POPUP)
+            popup.wait_for(state="hidden", timeout=15000)
             logger.info("✅ Login successful! Modal closed.")
-            time.sleep(3)
+            self.page.wait_for_timeout(3000)
             return True
         except: return False
 
     def navigate_to_online_forms_after_login(self):
         logger.info("\n--- Navigating to Internal Tab: טפסים מקוונים ---")
         try:
-            elements = self.driver.find_elements(*self.INTERNAL_TAB_ONLINE_FORMS)
-            visible_tab = None
-            for el in elements:
-                if el.is_displayed(): visible_tab = el; break
-            
-            if not visible_tab and elements: visible_tab = elements[-1]
-            if not visible_tab: raise Exception("Tab not found")
-
-            self.driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", visible_tab)
-            time.sleep(1)
-            self.driver.execute_script("arguments[0].click();", visible_tab)
+            visible_tab = self.page.locator(self.INTERNAL_TAB_ONLINE_FORMS).first
+            visible_tab.wait_for(state="visible", timeout=10000)
+            visible_tab.scroll_into_view_if_needed()
+            visible_tab.click()
             logger.info("✅ Clicked 'Online Forms' tab.")
-            time.sleep(3)
+            self.page.wait_for_load_state("networkidle")
             return True
         except Exception as e:
             logger.error(f"❌ Failed to click 'Online Forms' tab: {e}")
@@ -224,7 +207,7 @@ class EducationPage(BasePage):
             safe_name = "".join([c if c.isalnum() else "_" for c in link_name])
             filename = f"screenshots/error_{safe_name}_{timestamp}.png"
             
-            self.driver.save_screenshot(filename)
+            self.page.screenshot(path=filename)
             logger.info(f"📸 Screenshot saved: {filename}")
         except Exception as e:
             logger.warning(f"⚠️ Failed to save screenshot: {e}")
@@ -232,46 +215,41 @@ class EducationPage(BasePage):
     def _verify_external_link(self, link_text, expected_url_part):
         logger.info(f"Testing: {link_text}")
         
-        link_locator = (By.XPATH, f"//*[contains(@role, 'button') or self::a][contains(normalize-space(.), '{link_text}')]")
+        link_locator_str = f"//*[contains(@role, 'button') or self::a][contains(normalize-space(.), '{link_text}')]"
         try:
-            el = WebDriverWait(self.driver, 10).until(EC.presence_of_element_located(link_locator))
-        except:
+            locator = self.page.locator(link_locator_str).first
+            locator.wait_for(state="attached", timeout=10000)
+        except Exception:
             logger.error(f"❌ Link error: {link_text} (Element not found)")
             self._take_error_screenshot(link_text) 
             return
 
-        href = el.get_attribute("href")
+        href = locator.get_attribute("href")
         
-        orig_window = self.driver.current_window_handle
         try:
             if href and "http" in href:
                 decoded_href = unquote(href).strip()
                 decoded_expected = unquote(expected_url_part).strip()
                 if decoded_expected in decoded_href:
-                    logger.info(f"✅ Passed: {link_text}")
+                    logger.info(f"✅ Passed (HREF): {link_text}")
                     return
             
-            self.driver.execute_script("arguments[0].scrollIntoView({block:'center'});", el)
-            time.sleep(0.2)
-            self.driver.execute_script("arguments[0].click();", el)
+            with self.page.expect_popup() as popup_info:
+                locator.scroll_into_view_if_needed()
+                locator.click(force=True)
             
-            WebDriverWait(self.driver, 8).until(EC.number_of_windows_to_be(2))
+            new_page = popup_info.value
+            new_page.wait_for_load_state()
             
-            new_win = [w for w in self.driver.window_handles if w != orig_window][0]
-            self.driver.switch_to.window(new_win)
-            
-            current_url = unquote(self.driver.current_url).strip()
+            current_url = unquote(new_page.url).strip()
             expected_decoded = unquote(expected_url_part).strip()
 
             if expected_decoded in current_url:
                 logger.info(f"✅ Passed: {link_text}")
             else:
-                 logger.warning(f"⚠️ Warning: {link_text} opened but URL differs.\n   Expected URL Part: {expected_decoded}\n   Actual Full URL: {current_url}")
+                 logger.warning(f"⚠️ Warning: {link_text} opened but URL differs.\n   Expected: {expected_decoded}\n   Actual: {current_url}")
             
-            self.driver.close()
-        except Exception:
-            logger.error(f"❌ Link error: {link_text} (Click failed or window didn't open)")
+            new_page.close()
+        except Exception as e:
+            logger.error(f"❌ Link error: {link_text} (Click failed or verification error: {e})")
             self._take_error_screenshot(link_text) 
-        finally:
-            try: self.driver.switch_to.window(orig_window)
-            except: pass
