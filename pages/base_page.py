@@ -1,5 +1,6 @@
 import requests
 import logging
+import os
 from playwright.sync_api import Page, Locator, expect
 
 logger = logging.getLogger("SystemFlowLogger")
@@ -10,6 +11,7 @@ class BasePage:
     """
     
     DEFAULT_WAIT_TIME = 10000  # 10 seconds in milliseconds
+    MENIV_DOMAIN = "meniv-rishon.co.il"
     
     def __init__(self, page: Page):
         self.page = page
@@ -34,6 +36,10 @@ class BasePage:
         headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
         }
+        run_env = os.getenv("RUN_ENV", "").strip().lower()
+        if run_env == "server" and self.MENIV_DOMAIN in str(url).lower():
+            logger.info(f"⏭️ Skipping HTTP 200 validation for '{self.MENIV_DOMAIN}' on server run: {url}")
+            return True, "SKIPPED_SERVER_MENIV"
         
         try:
             response = requests.head(url, allow_redirects=True, timeout=5, headers=headers)

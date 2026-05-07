@@ -10,13 +10,9 @@ from .login_page import LoginPage
 logger = logging.getLogger("SystemFlowLogger")
 
 class EducationPage(BasePage):
-    """
-    Education Page Object.
-    Optimized for FAST link checking + Error Screenshots using Playwright.
-    """
 
     PAGE_TITLE_LOCATOR = "xpath=//h2[contains(normalize-space(.), 'רישום חינוך גני ילדים')]"
-    CONTENT_VALIDATOR = "xpath=//p[contains(normalize-space(.), 'הנרטיב')] | //div[contains(normalize-space(.), 'הנרטיב')]"
+    CONTENT_VALIDATOR = "p:has-text('הנרטיב')"
     PRIVACY_GUARD_AUTH_BUTTON = "xpath=//button[contains(text(), 'המשך') or contains(text(), 'כניסה') or contains(text(), 'התחבר') or contains(text(), 'הזדהות')]"
     PRIVACY_GUARD_POPUP = ".MuiDialog-container" 
     LOGIN_IFRAME_TAG = "iframe"
@@ -112,7 +108,7 @@ class EducationPage(BasePage):
     def verify_education_content(self):
         logger.info("\n--- Starting Content Validation ---")
         try:
-            self.get_element(self.CONTENT_VALIDATOR, timeout=10000)
+            self.page.locator(self.CONTENT_VALIDATOR).first.wait_for(state="visible", timeout=10000)
             logger.info("✅ Education page content verified!")
         except Exception:
             raise Exception("❌ Validation text 'הנרטיב' not found.")
@@ -131,17 +127,14 @@ class EducationPage(BasePage):
 
     def navigate_to_side_tab(self, tab_name):
         logger.info(f"\n--- Navigating to Side Tab: {tab_name} ---")
-        # In Playwright we don't need to switch to default content manually if we are already there
-        # But we ensure we are out of any iframes.
         
         if tab_name == "תיק תלמיד":
             self.page.reload()
             self.page.wait_for_load_state("networkidle")
 
-        xpath = f"//*[contains(text(), '{tab_name}')]"
         try:
-            target_element = self.page.locator(xpath).first
-            target_element.wait_for(state="visible", timeout=10000)
+            target_element = self.page.get_by_text(tab_name).filter(visible=True).first
+            target_element.wait_for(state="visible", timeout=15000)
             target_element.scroll_into_view_if_needed()
             target_element.click()
             logger.info(f"✅ Successfully navigated to: {tab_name}")
@@ -158,17 +151,13 @@ class EducationPage(BasePage):
                 auth_btn.click()
         except: pass
         
-        self.page.wait_for_timeout(2000)
+        self.page.wait_for_timeout(1000) 
         
-        # Handling iframes in Playwright
         iframe_element = self.page.locator(self.LOGIN_IFRAME_TAG).first
         if iframe_element.count() > 0:
             frame = self.page.frame_locator(self.LOGIN_IFRAME_TAG).first
             try:
-                # We need a LoginPage that can work with FrameLocator or we pass the Frame object
-                # For simplicity, let's assume we can interact with it via page.frame_locator
                 login_page = LoginPage(self.page, self.EDUCATION_URL)
-                # We'll need to update LoginPage to handle being inside a frame or pass the frame
                 login_page.login_with_password_inside_modal(user_id, user_password, frame=frame)
             except Exception as e:
                 raise e
@@ -177,23 +166,30 @@ class EducationPage(BasePage):
             popup = self.page.locator(self.PRIVACY_GUARD_POPUP)
             popup.wait_for(state="hidden", timeout=15000)
             logger.info("✅ Login successful! Modal closed.")
-            self.page.wait_for_timeout(3000)
+            self.page.wait_for_timeout(1500)
             return True
         except: return False
 
     def navigate_to_online_forms_after_login(self):
         logger.info("\n--- Navigating to Internal Tab: טפסים מקוונים ---")
-        try:
-            visible_tab = self.page.locator(self.INTERNAL_TAB_ONLINE_FORMS).first
-            visible_tab.wait_for(state="visible", timeout=10000)
-            visible_tab.scroll_into_view_if_needed()
-            visible_tab.click()
-            logger.info("✅ Clicked 'Online Forms' tab.")
-            self.page.wait_for_load_state("networkidle")
-            return True
-        except Exception as e:
-            logger.error(f"❌ Failed to click 'Online Forms' tab: {e}")
-            return False
+        for attempt in range(2):
+            try:
+                self.page.wait_for_load_state("domcontentloaded")
+                # הוספתי פה את אותו פילטר לאלמנטים גלויים בלבד כמו בניווט הרגיל
+                visible_tab = self.page.locator(self.INTERNAL_TAB_ONLINE_FORMS).filter(visible=True).first
+                visible_tab.wait_for(state="visible", timeout=15000)
+                visible_tab.scroll_into_view_if_needed()
+                visible_tab.click()
+                logger.info("✅ Clicked 'Online Forms' tab.")
+                self.page.wait_for_load_state("networkidle")
+                return True
+            except Exception as e:
+                if attempt == 0:
+                    logger.warning(f"⚠️ First attempt to open 'Online Forms' failed, retrying after stabilization: {e}")
+                    self.page.wait_for_timeout(1500)
+                    continue
+                logger.error(f"❌ Failed to click 'Online Forms' tab: {e}")
+                return False
 
     def run_online_forms_link_tests(self):
         self.verify_links_from_dictionary(self.ONLINE_FORMS_LINKS, "Online Forms Internal")
@@ -252,4 +248,4 @@ class EducationPage(BasePage):
             new_page.close()
         except Exception as e:
             logger.error(f"❌ Link error: {link_text} (Click failed or verification error: {e})")
-            self._take_error_screenshot(link_text) 
+            self._take_error_screenshot(link_text)
